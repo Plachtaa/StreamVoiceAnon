@@ -33,8 +33,6 @@ python evaluations/infer_arvc.py \
     --delay 2 \  # Specify delay in number of frames (must have)
     --compile
 ```
-Although offline, the above command still uses a simulated streaming inference logic which processes audio chunk by chunk.
-
 Simulated online inference
 ```bash
 python evaluations/infer_arvc.py \
