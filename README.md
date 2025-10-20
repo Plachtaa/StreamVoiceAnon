@@ -48,7 +48,7 @@ This simulates a chunk-by-chunk online inference with specified chunk size. `src
 
 Real-time inference
 ```bash
-python real-time-gui.py
+python evaluations/real-time-gui.py
 ```
 This UI uses the same behavior as simulated online inference. It uses `--compile` by default, so please ensure you have installed triton (as previously stated) before using it.
 
