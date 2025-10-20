@@ -1,0 +1,1 @@
+{"reference_audio_path": "D:/StreamVoiceAnon/test_waves/azuma_0.wav", "sg_hostapi": "MME", "sg_wasapi_exclusive": false, "sg_input_device": "\u9ea6\u514b\u98ce (Realtek(R) Audio)", "sg_output_device": "\u626c\u58f0\u5668 (Realtek(R) Audio)", "sr_type": "sr_model", "block_frame": 3.0, "n_frame_delay": 4.0}

@@ -1,0 +1,60 @@
+log_dir: "runs/firefly_arvc_8192_delay0_8"
+log_interval: 10
+log_prediction_interval: 4000
+save_interval: 4000
+batch_size: 8 # per GPU
+num_workers: 0
+max_keep_n: 20
+pretrained_model: ""
+gradiant_accumulation_steps: 4
+load_only_params: true # set to true if do not want to load epoch numbers and optimizer parameters
+
+preprocess_params:
+  sr: 44100
+  min_duration: 1.0
+  max_duration: 45.0
+  spect_params:
+    n_fft: 2048
+    win_length: 2048
+    hop_length: 512
+    n_mels: 160
+    fmin: 0
+    fmax: null
+
+optimizer_params:
+  type: "MuonAdamW"
+  AdamW_betas: [0.9, 0.98]
+  AdamW_eps: 0.000001
+  weight_decay: 0.01
+  lr: 0.0001
+  muon_exclude_keys:
+    - "embedding"
+    - "lm_head"
+    - "output"
+    - "to_logits"
+  scheduler:
+    gamma: 0.999997
+    min_lr: 0.00001
+
+model_params:
+  config_path: "configs/hydra_arcs/firefly_arvc_bsq_8192_delay0_8.yaml"
+
+style_encoder:
+  config_path: "configs/hydra_arcs/campplus.yaml"
+  checkpoint_path: "pretrained_checkpoints/campplus_cn_common.bin"
+
+speech_tokenizer:
+  config_path: "configs/hydra_arcs/causal-encoder-lfq-8192.yaml"
+  checkpoint_path: "pretrained_checkpoints/asr_s2s_bsq_8192_causal_down_whisper.pth"
+
+firefly:
+  config_path: "configs/hydra_arcs/firefly_gan_vq.yaml"
+  checkpoint_path: "pretrained_checkpoints/firefly-gan-vq-fsq-8x1024-21hz-generator.pth"
+
+timbre_encoder:
+  config_path: "configs/hydra_arcs/sparktts_speaker_encoder.yaml"
+  checkpoint_path: "pretrained_checkpoints/spark_speaker_encoder.pth"
+
+loss_params:
+  codebook_loss_weight: 1.0
+  semantic_loss_weight: 1.0

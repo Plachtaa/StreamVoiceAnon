@@ -1,0 +1,3 @@
+_target_: modules.campplus.DTDNN.CAMPPlus
+feat_dim: 80
+embedding_size: 192

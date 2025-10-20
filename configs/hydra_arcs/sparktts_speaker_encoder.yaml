@@ -1,0 +1,19 @@
+_target_: modules.bicodec_speaker_encoder.speaker_encoder.SpeakerEncoder
+mel_fn:
+  _target_: torchaudio.transforms.MelSpectrogram
+  sample_rate: 16000
+  n_fft: 1024
+  win_length: 640
+  hop_length: 320
+  f_min: 10.0
+  f_max: null
+  n_mels: 128
+  power: 1.0
+  norm: 'slaney'
+  mel_scale: 'slaney'
+input_dim: 128
+out_dim: 1024
+latent_dim: 128
+token_num: 32
+fsq_levels: [4, 4, 4, 4, 4, 4]
+fsq_num_quantizers: 1

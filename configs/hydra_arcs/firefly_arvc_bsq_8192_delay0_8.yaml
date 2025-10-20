@@ -1,0 +1,40 @@
+_target_: modules.arvc_wrapper.ARVCWrapper
+embedding:
+  _target_: torch.nn.Embedding
+  num_embeddings: 8192
+  embedding_dim: 768
+context_dim: 128
+style_dim: 192
+model_dim: 768
+decoder:
+  _target_: modules.dual_ar_stream.DualARWrapper
+  model:
+    _target_: modules.dual_ar_stream.DualARTransformer
+    config:
+      _target_: modules.dual_ar_stream.DualARModelArgs
+      attention_qkv_bias: false
+      max_seq_len: 2048
+      n_layer: 12
+      n_head: 12
+      dim: 768
+      intermediate_size: 2304
+      n_local_heads: -1
+      head_dim: 64
+      rope_base: 10000
+      norm_eps: 0.00001
+      dropout: 0.1
+
+      vocab_size: 8192  # no eos
+      codebook_size: 1000
+      fast_attention_qkv_bias: false
+      fast_dim: 768
+      fast_head_dim: 64
+      fast_intermediate_size: 2304
+      fast_n_head: 12
+      fast_n_local_heads: -1
+      n_fast_layer: 4
+      num_codebooks: 8
+      use_gradient_checkpointing: false
+      tie_word_embeddings: false
+      cond_input_dim: 768
+      delay: [0, 1, 2, 3, 4, 5, 6, 7, 8]
