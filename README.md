@@ -57,3 +57,12 @@ This UI uses the same behavior as simulated online inference. It uses `--compile
  - [ ] Release metrics for voice conversion & speaker anonymization
  - [ ] Release fine-tuning code
  - [ ] More to be added
+
+### Acknowledgements
+ - Co-author: https://github.com/paniquex
+ - Computation resources: https://www.nscc.sg/
+ - Real-time GUI: https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI
+ - Speaker representations (1 of 2) https://huggingface.co/funasr/campplus
+ - Speaker representations (2 of 2) https://github.com/SparkAudio/Spark-TTS
+ - Speech acoustic codec https://huggingface.co/fishaudio/fish-speech-1.5
+ - Idea: https://arxiv.org/html/2401.11053v1
