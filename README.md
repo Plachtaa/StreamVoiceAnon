@@ -5,6 +5,8 @@ Training code will be released after the paper is accepted.
 
 ### Installation
 ```bash
+git clone https://github.com/Plachtaa/StreamVoiceAnon.git
+cd StreamVoiceAnon
 pip install -r requirements.txt
 ```
 
@@ -16,10 +18,8 @@ Note that this is **compulsory** to run inference with RTF < 1.0
 
 Full MacOS support is still under construction.
 
-### Clone Repo & Download Pretrained Models
+### Download Pretrained Models
 ```bash
-git clone https://github.com/Plachtaa/StreamVoiceAnon.git
-cd StreamVoiceAnon
 hf download Plachta/StreamVoiceAnon --local-dir pretrained_checkpoints/
 ```
 
