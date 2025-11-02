@@ -1,3 +1,6 @@
+## ⚠️This repository is currently under construction.⚠️
+
+
 # StreamVoiceAnon
 This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
 Relevant paper has been submitted to ICASSP 2026.  
@@ -53,9 +56,10 @@ python evaluations/real-time-gui.py
 This UI uses the same behavior as simulated online inference. It uses `--compile` by default, so please ensure you have installed triton (as previously stated) before using it.
 
 ### TODO
- - [ ] Full MacOS support
+ - [ ] Release privacy protection code
  - [ ] Release metrics for voice conversion & speaker anonymization
  - [ ] Release fine-tuning code
+ - [ ] Full MacOS support
  - [ ] More to be added
 
 ### Acknowledgements
@@ -66,3 +70,4 @@ This UI uses the same behavior as simulated online inference. It uses `--compile
  - Speaker representations (2 of 2) https://github.com/SparkAudio/Spark-TTS
  - Speech acoustic codec https://huggingface.co/fishaudio/fish-speech-1.5
  - Idea: https://arxiv.org/html/2401.11053v1
+ - VoicePrivacyChallenge: https://www.voiceprivacychallenge.org/
