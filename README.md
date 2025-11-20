@@ -4,7 +4,6 @@
 # StreamVoiceAnon
 This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
 Relevant paper has been submitted to ICASSP 2026.  
-Training code will be released after the paper is accepted.
 
 ### Installation
 ```bash
@@ -25,6 +24,13 @@ Full MacOS support is still under construction.
 ```bash
 hf download Plachta/StreamVoiceAnon --local-dir pretrained_checkpoints/
 ```
+
+### Training
+Below is an example command to launch single node multi-GPU training with streaming Emilia dataset from HuggingFace:
+```bash
+accelerate launch trainers/arvc_trainer.py --config_path configs/config_firefly_arvcasr_8192_delay0_8.yaml --mixed-precision bf16
+```
+To customize model config or training datasets, we encourage users to read config files or training code.
 
 ### Inference
 Offline inference 
@@ -58,6 +64,8 @@ This UI uses the same behavior as simulated online inference. It uses `--compile
 ### TODO
  - [ ] Release privacy protection code
  - [ ] Release metrics for voice conversion & speaker anonymization
+ - [x] Release training code (for VC model)
+ - [ ] Release training code (for content encoder)
  - [ ] Release fine-tuning code
  - [ ] Full MacOS support
  - [ ] More to be added
