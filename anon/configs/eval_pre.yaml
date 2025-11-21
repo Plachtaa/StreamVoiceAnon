@@ -1,0 +1,63 @@
+data_dir: data
+exp_dir: exp
+
+anon_data_suffix: _mcadams # added to transform data/libri_dev/ to data/libri_dev_mcadams/ with data/libri_dev_mcadams/wav/*wav
+
+results_summary_path: !ref <exp_dir>/results_summary/eval_orig<anon_data_suffix>/results_orig.txt
+
+datasets:
+  - name: IEMOCAP_dev
+    data: IEMOCAP_dev
+  - name: IEMOCAP_test
+    data: IEMOCAP_test
+  - name: libri_dev
+    data: libri_dev
+    enrolls: [_enrolls]
+    trials: [_trials_f, _trials_m]
+  - name: libri_test
+    data: libri_test
+    enrolls: [_enrolls]
+    trials: [_trials_f, _trials_m]
+
+
+eval_steps:  # all metrics in this list will be computed in the evaluation. Remove entry to skip
+  privacy:
+    - asv
+  utility:
+    - asr
+    - ser
+
+privacy:
+  asv:
+    dataset_name: [libri_dev, libri_test]
+    model_name: asv_orig
+    model_type: ecapa
+
+    evaluation:
+      model_dir: !ref <exp_dir>/<privacy[asv][model_name]>  # path to existing ASV model or output for trained ASV model
+      results_dir: !ref <exp_dir>/<privacy[asv][model_name]>  # path to save evaluation results
+      distance: cosine  # cosine or plda
+      plda:   # ignored if distance is not plda
+        model_dir: null  # path to trained PLDA or output of PLDA training
+        train_data_dir: null # path to PLDA training data
+        anon: null # trained on anonymized (true) or original (false) data
+
+utility:
+  ser:
+    dataset_name: [IEMOCAP_dev, IEMOCAP_test]
+    model_name: ser  # name for ASR model
+
+    evaluation:
+      model_dir: !ref <exp_dir>/<utility[ser][model_name]>
+      results_dir: !ref <exp_dir>/<utility[ser][model_name]>
+
+  asr:
+    dataset_name: [libri_dev, libri_test, IEMOCAP_dev, IEMOCAP_test]
+    model_name: asr # name for ASR model, asr_pre_transformer_transformerlm + EncoderDecoderASR or asr_pre_ctc_wav2vec2 + EncoderASR
+
+    evaluation:
+      model_type: EncoderASR # EncoderDecoderASR or EncoderASR (from speechbrain)
+      # hparams_file: hyperparams.yaml # Check the 'model_dir' config yaml file, default to 'hyperparams.yaml'
+      model_dir: !ref <exp_dir>/<utility[asr][model_name]>
+      eval_batchsize: 8 # Requires < 12Gib for the 'asr_pre_ctc_wav2vec2' model
+      results_dir: !ref <exp_dir>/<utility[asr][model_name]>

@@ -1,0 +1,154 @@
+# ############################################################################
+# Model: E2E ASR with Transformer
+# Encoder: Transformer Encoder
+# Decoder: Transformer Decoder + (CTC/ATT joint) beamsearch + TransformerLM
+# Tokens: unigram
+# losses: CTC + KLdiv (Label Smoothing loss)
+# Training: Librispeech 960h
+# Authors:  Jianyuan Zhong, Titouan Parcollet 2021
+# ############################################################################
+
+# Feature parameters
+sample_rate: 16000
+n_fft: 400
+n_mels: 80
+
+####################### Model parameters ###########################
+# Transformer
+d_model: 512
+nhead: 4
+num_encoder_layers: 12
+num_decoder_layers: 6
+d_ffn: 2048
+transformer_dropout: 0.1
+activation: !name:torch.nn.GELU
+output_neurons: 5000
+vocab_size: 5000
+
+# Outputs
+blank_index: 0
+label_smoothing: 0.0
+pad_index: 0
+bos_index: 1
+eos_index: 2
+
+# Decoding parameters
+min_decode_ratio: 0.0
+max_decode_ratio: 1.0
+valid_search_interval: 10
+valid_beam_size: 10
+test_beam_size: 66
+lm_weight: 0.60
+ctc_weight_decode: 0.40
+
+############################## models ################################
+
+CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
+    input_shape: (8, 10, 80)
+    num_blocks: 3
+    num_layers_per_block: 1
+    out_channels: (64, 64, 64)
+    kernel_sizes: (5, 5, 1)
+    strides: (2, 2, 1)
+    residuals: (False, False, True)
+    norm: !name:speechbrain.nnet.normalization.LayerNorm
+
+Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR
+    input_size: 1280
+    tgt_vocab: !ref <output_neurons>
+    d_model: !ref <d_model>
+    nhead: !ref <nhead>
+    num_encoder_layers: !ref <num_encoder_layers>
+    num_decoder_layers: !ref <num_decoder_layers>
+    d_ffn: !ref <d_ffn>
+    dropout: !ref <transformer_dropout>
+    activation: !ref <activation>
+    encoder_module: transformer
+    attention_type: regularMHA
+    normalize_before: True
+    causal: False
+
+ctc_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: !ref <d_model>
+    n_neurons: !ref <output_neurons>
+
+seq_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: !ref <d_model>
+    n_neurons: !ref <output_neurons>
+
+decoder: !new:speechbrain.decoders.S2STransformerBeamSearch
+    modules: [!ref <Transformer>, !ref <seq_lin>, !ref <ctc_lin>]
+    bos_index: !ref <bos_index>
+    eos_index: !ref <eos_index>
+    blank_index: !ref <blank_index>
+    min_decode_ratio: !ref <min_decode_ratio>
+    max_decode_ratio: !ref <max_decode_ratio>
+    beam_size: !ref <test_beam_size>
+    ctc_weight: !ref <ctc_weight_decode>
+    lm_weight: !ref <lm_weight>
+    lm_modules: !ref <lm_model>
+    temperature: 1.15
+    temperature_lm: 1.15
+    using_eos_threshold: False
+    length_normalization: True
+
+log_softmax: !new:torch.nn.LogSoftmax
+    dim: -1
+
+normalizer: !new:speechbrain.processing.features.InputNormalization
+    norm_type: global
+
+compute_features: !new:speechbrain.lobes.features.Fbank
+    sample_rate: !ref <sample_rate>
+    n_fft: !ref <n_fft>
+    n_mels: !ref <n_mels>
+
+# This is the Transformer LM that is used according to the Huggingface repository
+# Visit the HuggingFace model corresponding to the pretrained_lm_tokenizer_path
+# For more details about the model!
+# NB: It has to match the pre-trained TransformerLM!!
+lm_model: !new:speechbrain.lobes.models.transformer.TransformerLM.TransformerLM
+    vocab: 5000
+    d_model: 768
+    nhead: 12
+    num_encoder_layers: 12
+    num_decoder_layers: 0
+    d_ffn: 3072
+    dropout: 0.0
+    activation: !name:torch.nn.GELU
+    normalize_before: False
+
+tokenizer: !new:sentencepiece.SentencePieceProcessor
+
+Tencoder: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper
+    transformer: !ref <Transformer>
+
+encoder: !new:speechbrain.nnet.containers.LengthsCapableSequential
+    input_shape: [null, null, !ref <n_mels>]
+    compute_features: !ref <compute_features>
+    normalize: !ref <normalizer>
+    cnn: !ref <CNN>
+    transformer_encoder: !ref <Tencoder>
+
+# Models
+asr_model: !new:torch.nn.ModuleList
+    - [!ref <CNN>, !ref <Transformer>, !ref <seq_lin>, !ref <ctc_lin>]
+
+modules:
+   compute_features: !ref <compute_features>
+   normalizer: !ref <normalizer>
+   pre_transformer: !ref <CNN>
+   transformer: !ref <Transformer>
+   asr_model: !ref <asr_model>
+   lm_model: !ref <lm_model>
+   encoder: !ref <encoder>
+   decoder: !ref <decoder>
+
+# The pretrainer allows a mapping between pretrained files and instances that
+# are declared in the yaml.
+pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
+   loadables:
+      normalizer: !ref <normalizer>
+      model: !ref <asr_model>
+      lm: !ref <lm_model>
+      tokenizer: !ref <tokenizer>

@@ -1,0 +1,135 @@
+# ################################
+# Model: Speaker identification with ECAPA
+# Authors: Hwidong Na & Mirco Ravanelli
+# ################################
+
+# Basic parameters
+seed: 1986
+__set_seed: !apply:torch.manual_seed [!ref <seed>]
+output_folder: !ref results/xvect/<seed>
+save_folder: !ref <output_folder>/
+train_log: !ref <output_folder>/train_log.txt
+
+
+## how much data used for training
+num_utt: !PLACEHOLDER
+num_spk: !PLACEHOLDER
+utt_selected_ways: !PLACEHOLDER
+pretrained_path: !PLACEHOLDER
+
+# Data files
+data_folder: !PLACEHOLDER  # e.g. /path/to/Voxceleb
+train_annotation: !ref <save_folder>/train.csv
+valid_annotation: !ref <save_folder>/dev.csv
+
+skip_prep: False
+ckpt_interval_minutes: 15 # save checkpoint every N min
+
+# Training parameters
+number_of_epochs: !PLACEHOLDER
+batch_size: !PLACEHOLDER
+lr: 0.001
+lr_final: 0.0001
+
+sample_rate: 16000
+sentence_len: 3.0 # seconds
+shuffle: True
+random_chunk: True
+
+# Feature parameters
+n_mels: 24
+left_frames: 0
+right_frames: 0
+deltas: False
+
+# Number of speakers
+out_n_neurons: !PLACEHOLDER  #921 for libri-train-clean-360
+
+dataloader_options:
+    batch_size: !ref <batch_size>
+    shuffle: !ref <shuffle>
+    num_workers: 32
+
+# Functions
+compute_features: !new:speechbrain.lobes.features.Fbank
+    n_mels: !ref <n_mels>
+    left_frames: !ref <left_frames>
+    right_frames: !ref <right_frames>
+    deltas: !ref <deltas>
+
+embedding_model: !new:speechbrain.lobes.models.Xvector.Xvector
+    in_channels: !ref <n_mels>
+    activation: !name:torch.nn.LeakyReLU
+    tdnn_blocks: 5
+    tdnn_channels: [512, 512, 512, 512, 1500]
+    tdnn_kernel_sizes: [5, 3, 3, 1, 1]
+    tdnn_dilations: [1, 2, 3, 1, 1]
+    lin_neurons: 512
+
+classifier: !new:speechbrain.lobes.models.Xvector.Classifier
+    input_shape: [null, null, 512]
+    activation: !name:torch.nn.LeakyReLU
+    lin_blocks: 1
+    lin_neurons: 512
+    out_neurons: !ref <out_n_neurons>
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounterWithStopper
+    limit_to_stop: 2
+    limit_warmup: 2
+    direction: min
+    limit: !ref <number_of_epochs>
+
+
+
+mean_var_norm: !new:speechbrain.processing.features.InputNormalization
+    norm_type: sentence
+    std_norm: False
+
+modules:
+    compute_features: !ref <compute_features>
+    embedding_model: !ref <embedding_model>
+    classifier: !ref <classifier>
+    mean_var_norm: !ref <mean_var_norm>
+
+# Cost + optimization
+compute_cost: !name:speechbrain.nnet.losses.nll_loss
+compute_error: !name:speechbrain.nnet.losses.classification_error
+
+opt_class: !name:torch.optim.Adam
+    lr: !ref <lr>
+    weight_decay: 0.000002
+
+lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
+    initial_value: !ref <lr>
+    final_value: !ref <lr_final>
+    epoch_count: !ref <number_of_epochs>
+
+# Logging + checkpoints
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+    save_file: !ref <train_log>
+
+error_stats: !name:speechbrain.utils.metric_stats.MetricStats
+    metric: !name:speechbrain.nnet.losses.classification_error
+        reduction: batch
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+    checkpoints_dir: !ref <save_folder>
+    recoverables:
+        embedding_model: !ref <embedding_model>
+        classifier: !ref <classifier>
+        normalizer: !ref <mean_var_norm>
+        counter: !ref <epoch_counter>
+
+# Load pretrained embedding module
+# Note: in this case, we pre-train with the ECAPA-TDNN model trained on voxceleb
+# for speaker-id (this leads to a performance improvement).
+
+# Pretrained ECAPA embeddings from SpeakerID on VoxCeleb
+pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
+    collect_in: !ref <save_folder>
+    loadables:
+        embedding_model: !ref <embedding_model>
+        #classifier: !ref <classifier>
+    paths:
+        embedding_model: !ref <pretrained_path>/embedding_model.ckpt
+        #classifier: !ref <pretrained_path>/classifier.ckpt
