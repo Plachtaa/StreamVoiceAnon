@@ -1,0 +1,12 @@
+_target_: modules.asr.asr_decoder.ASRDecoder
+hidden_dim: 768
+num_heads: 12
+depth: 12
+block_size: 4096
+in_channels: 512
+loss_type: "s2s"  # ctc or s2s
+n_vocab: 51866
+bos_id: 50528
+eos_id: 50527
+dropout_rate: 0.0
+attn_dropout_rate: 0.0

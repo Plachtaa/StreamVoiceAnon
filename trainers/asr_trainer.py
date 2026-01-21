@@ -27,7 +27,7 @@ warnings.simplefilter('ignore')
 logger = get_logger(__name__, log_level="INFO")
 
 
-class ARVCTrainer:
+class ASRTrainer:
     def __init__(self, config_path, start_epoch=0, mixed_precision=None):
         """
         Initialize the Dual AR Trainer
@@ -101,8 +101,8 @@ class ARVCTrainer:
         # Initialize dataloader
         self.train_dataloader = build_dataloader(
             batch_size=self.batch_size,
-            num_workers=self.config['num_workers'],
-            prefetch_factor=12,
+            num_workers=0, # self.config['num_workers'],
+            prefetch_factor=None, #12,
             preprocess_params=self.preprocess_params,
             epoch=self.start_epoch,
         )
@@ -124,40 +124,20 @@ class ARVCTrainer:
     def _init_main_model(self):
         """Initialize the main model"""
         with self.accelerator.main_process_first():
-            cfg = DictConfig(yaml.safe_load(open(self.config['model_params']['config_path'])))
-            self.model = hydra.utils.instantiate(cfg).to(self.device)
-        self.model = self.accelerator.prepare(self.model)
+            encoder_cfg = DictConfig(yaml.safe_load(open(self.config['encoder']['config_path'])))
+            self.encoder_model = hydra.utils.instantiate(encoder_cfg).to(self.device)
+            asr_head_cfg = DictConfig(yaml.safe_load(open(self.config['asr_head']['config_path'])))
+            self.asr_head_model = hydra.utils.instantiate(asr_head_cfg).to(self.device)
+        self.encoder_model = self.accelerator.prepare(self.encoder_model)
+        self.asr_head_model = self.accelerator.prepare(self.asr_head_model)
 
     def _init_helper_models(self):
         with self.accelerator.main_process_first():
-            speechtokenizer_cfg = DictConfig(yaml.safe_load(open(self.config['speech_tokenizer']['config_path'])))
-            self.speech_tokenizer = hydra.utils.instantiate(speechtokenizer_cfg).to(self.device)
-            speech_tokenizer_sd = torch.load(
-                    self.config["speech_tokenizer"]["checkpoint_path"], map_location="cpu"
-                )
-            if 'net' in speech_tokenizer_sd:
-                speech_tokenizer_sd = speech_tokenizer_sd['net']
-            # strip 'module.' prefix if exists
-            speech_tokenizer_sd = {
-                k[7:] if k.startswith('module.') else k: v for k, v in speech_tokenizer_sd.items()
-            }
-            missing_keys, unexpected_keys = self.speech_tokenizer.load_state_dict(
-                speech_tokenizer_sd, strict=False
-            )
-            print(f"Missing keys in speech tokenizer: {missing_keys}")
-            print(f"Unexpected keys in speech tokenizer: {unexpected_keys}")
-            for param in self.speech_tokenizer.parameters():
-                param.requires_grad = False
-            self.speech_tokenizer.eval()
-
-            firefly_cfg = DictConfig(yaml.safe_load(open(self.config['firefly']['config_path'])))
-            self.firefly = hydra.utils.instantiate(firefly_cfg).to(self.device).eval()
-            self.firefly.load_state_dict(
-                torch.load(self.config["firefly"]["checkpoint_path"], map_location="cpu"),
-                strict=False,
-            )
-            self.firefly.remove_parametrizations()
-            for param in self.firefly.parameters():
+            self.wav2vec_model = hydra.utils.instantiate(
+                OmegaConf.load(self.config["wav2vec_model"]["config_path"])
+            ).to(self.device)
+            self.wav2vec_model.eval()
+            for param in self.wav2vec_model.parameters():
                 param.requires_grad = False
 
             self.style_encoder = hydra.utils.instantiate(
@@ -173,26 +153,12 @@ class ARVCTrainer:
                 param.requires_grad = False
             self.style_encoder.eval()
 
-            # sparktts timbre encoder
-            self.timbre_encoder = hydra.utils.instantiate(
-                OmegaConf.load(self.config["timbre_encoder"]["config_path"])
-            ).to(self.device).eval()
-            self.timbre_encoder.load_state_dict(
-                torch.load(
-                    self.config["timbre_encoder"]["checkpoint_path"], map_location="cpu"
-                ),
-                strict=False,
-            )
-            for param in self.timbre_encoder.parameters():
-                param.requires_grad = False
-            self.timbre_encoder.eval()
-
     def _init_optimizers(self):
         """Initialize optimizers and schedulers"""
         from optimizers.default import build_optimizer
         optimizer_params = self.config['optimizer_params']
         self.optimizer, self.scheduler = build_optimizer(
-            self.model,
+            torch.nn.ModuleList([self.encoder_model, self.asr_head_model]),
             optimizer_params,
             type=optimizer_params['type'],
             lr=optimizer_params['lr']
@@ -202,7 +168,7 @@ class ARVCTrainer:
 
     def _load_checkpoint(self):
         """Load checkpoint if available"""
-        available_checkpoints = glob.glob(osp.join(self.log_dir, "DAR_epoch_*_step_*.pth"))
+        available_checkpoints = glob.glob(osp.join(self.log_dir, "ASR_epoch_*_step_*.pth"))
         if len(available_checkpoints) > 0:
             # find the checkpoint that has the highest step number
             latest_checkpoint = max(
@@ -222,13 +188,22 @@ class ARVCTrainer:
         else:
             latest_checkpoint = self.config.get("pretrained_model", "")
 
+
+
         with self.accelerator.main_process_first():
             if latest_checkpoint != '':
                 checkpoint = torch.load(latest_checkpoint, map_location='cpu')
                 filtered_sd, skipped_keys = self.filter_state_dict_shapes(
-                    checkpoint['net'], self.model
+                    checkpoint['net'], self.encoder_model
                 )
-                missing_keys, unexpected_keys = self.model.load_state_dict(filtered_sd, strict=False)
+                missing_keys, unexpected_keys = self.encoder_model.load_state_dict(filtered_sd, strict=False)
+                print(f"Missing keys: {missing_keys}")
+                print(f"Unexpected keys: {unexpected_keys}")
+
+                filtered_sd, skipped_keys = self.filter_state_dict_shapes(
+                    checkpoint['net_asr_head'], self.asr_head_model
+                )
+                missing_keys, unexpected_keys = self.asr_head_model.load_state_dict(filtered_sd, strict=False)
                 print(f"Missing keys: {missing_keys}")
                 print(f"Unexpected keys: {unexpected_keys}")
                 if not self.config['load_only_params'] and len(skipped_keys) == 0:
@@ -264,7 +239,8 @@ class ARVCTrainer:
             except AttributeError:
                 pass
 
-            self.model.train()
+            self.encoder_model.train()
+            self.asr_head_model.train()
 
             for i, batch in enumerate(tqdm(self.train_dataloader)):
                 # Process batch
@@ -273,17 +249,6 @@ class ARVCTrainer:
             # Log epoch completion
             if self.accelerator.is_main_process:
                 logger.info(f"Epoch {epoch} completed in {time.time() - epoch_start_time:.2f} seconds")
-
-    @torch.no_grad()
-    def wav2target_fn(self, waves, wave_lengths):
-        (target, quantized), target_lengths = self.firefly.encode(waves, wave_lengths)
-        target_size = target.size(2)
-        return target, quantized, target_lengths, target_size
-
-    @torch.no_grad()
-    def code2wav_fn(self, code, target_len):
-        wav, _ = self.firefly.decode(indices=code, feature_lengths=target_len)
-        return wav
 
     @torch.no_grad()
     def calculate_style_vec(
@@ -319,19 +284,6 @@ class ARVCTrainer:
         feat = torch.stack(feat_list, dim=0)
         style_vectors = self.style_encoder(feat, feat_lens)
         return style_vectors
-
-    @torch.no_grad()
-    def calculate_timbre_latent(
-        self,
-        audio_16k_tensor: torch.Tensor,
-        wave_lens: torch.Tensor,
-    ):
-        resample_timbre, resample_timbre_tokens = self.timbre_encoder.tokenize_wav(
-            audio_16k_tensor, wave_lens
-        )
-        resample_timbre = resample_timbre.mT
-        return resample_timbre
-
     def _process_batch(self, epoch, i, batch):
         """Process a single batch"""
         grad_norm_g = 0.0
@@ -346,37 +298,35 @@ class ARVCTrainer:
         wave_lengths_16k = (wave_lens.float() * 16000 / self.sr).long()
 
         # audio features
-        audio_codes, quantized_features, target_lengths, target_size = self.wav2target_fn(
-            waves,
-            wave_lens,
-        )
-
-        semantic_codes, feature_lens = self.speech_tokenizer.encode(
-            waves, wave_lens
-        )
-        semantic_codes = semantic_codes.squeeze(0)
+        wav2vec_feature = self.wav2vec_model(waves_16k, wave_lengths_16k)
+        wav2vec_feature_lens = (wave_lengths_16k.float() / 320).long()
+        wav2vec_mask = torch.arange(wav2vec_feature.size(2)).unsqueeze(0).to(waves.device) < wav2vec_feature_lens.unsqueeze(1)
 
         style_vectors = self.calculate_style_vec(waves_16k, wave_lengths_16k)
 
-        timbre_latents = self.calculate_timbre_latent(
-            waves_16k, wave_lengths_16k
-        )
-
         # Forward pass and loss calculation
         with self.accelerator.autocast():
-            loss_codebook, loss_semantic, _, _ = self.model(
-                x_lens=feature_lens,
-                condition=semantic_codes,
-                base_target=semantic_codes,
-                target=audio_codes,
-                style_vectors=style_vectors,
-                timbre_latents=timbre_latents,
+            wav2vec_feature_pred, vq_results = self.encoder_model(
+                x=waves,
+                x_lens=wave_lens,
+                target_len=wav2vec_feature.size(-1),
+                g=style_vectors.unsqueeze(2),
+            )
+            s2s_loss = self.asr_head_model(
+                x=vq_results.latents.mT,
+                x_lens=wave_lens // self.hop_length // 4,
+                text=texts,
+                text_lens=text_lens,
+            )
+            l1_loss = F.l1_loss(
+                wav2vec_feature_pred.mT[wav2vec_mask],
+                wav2vec_feature.mT[wav2vec_mask],
             )
 
 
             loss_gen = (
-                self.loss_params['codebook_loss_weight'] * loss_codebook
-                + self.loss_params['semantic_loss_weight'] * loss_semantic
+                self.loss_params['s2s_loss_weight'] * s2s_loss
+                + self.loss_params['l1_loss_weight'] * l1_loss
             )
 
             # Backward pass
@@ -384,8 +334,11 @@ class ARVCTrainer:
 
             # Update weights if gradient accumulation steps reached
             if self.iters % self.gradiant_accumulation_steps == 0:
-                grad_norm_g = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), 1000.0
+                grad_norm_g1 = torch.nn.utils.clip_grad_norm_(
+                    self.encoder_model.parameters(), 10.0
+                )
+                grad_norm_g2 = torch.nn.utils.clip_grad_norm_(
+                    self.asr_head_model.parameters(), 10.0
                 )
                 self.optimizer.step()
                 self.scheduler.step(self.iters)
@@ -393,15 +346,10 @@ class ARVCTrainer:
 
         # log display args
         display_kwargs = {
-            "gt_audio_codes": audio_codes,
-            "audio_code_lens": target_lengths,
-            "style_vectors": style_vectors,
-            "timbre_latents": timbre_latents,
-            "base_targets": semantic_codes,
         }
 
         # Log training progress
-        self._log_training_progress(epoch, i, grad_norm_g, loss_gen, loss_codebook, loss_semantic, **display_kwargs)
+        self._log_training_progress(epoch, i, grad_norm_g, loss_gen, s2s_loss, l1_loss, **display_kwargs)
 
         # Save checkpoint
         self._save_checkpoint(epoch)
@@ -409,7 +357,7 @@ class ARVCTrainer:
         # Increment iteration counter
         self.iters += 1
 
-    def _log_training_progress(self, epoch, i, grad_norm_g, loss_gen, loss_codebook, loss_semantic, **display_kwargs):
+    def _log_training_progress(self, epoch, i, grad_norm_g, loss_gen, s2s_loss, l1_loss, **display_kwargs):
         """Log training progress to tensorboard"""
         if self.iters % self.log_interval == 0 and self.accelerator.is_main_process:
             with torch.no_grad():
@@ -417,14 +365,14 @@ class ARVCTrainer:
 
                 # Log to console
                 print(
-                    "Epoch %d, Iteration %d, Loss Gen: %.4f, Loss Codebook: %.4f, Loss Semantic: %.4f, "
+                    "Epoch %d, Iteration %d, Loss Gen: %.4f, Loss S2S: %.4f, Loss L1: %.4f, "
                     "Grad Norm G: %.4f"
                     % (
                         epoch,
                         self.iters,
                         loss_gen.item(),
-                        loss_codebook.item(),
-                        loss_semantic.item(),
+                        s2s_loss.item(),
+                        l1_loss.item(),
                         grad_norm_g,
                     )
                 )
@@ -432,66 +380,27 @@ class ARVCTrainer:
                 # Log to tensorboard
                 self.writer.add_scalar('train/lr', cur_lr, self.iters)
                 self.writer.add_scalar('grad_norm/ar', grad_norm_g, self.iters)
-                self.writer.add_scalar('train/loss_codebook', loss_codebook.item(), self.iters)
-                self.writer.add_scalar('train/loss_semantic', loss_semantic.item(), self.iters)
+                self.writer.add_scalar('train/s2s_loss', s2s_loss.item(), self.iters)
+                self.writer.add_scalar('train/l1_loss', l1_loss.item(), self.iters)
                 self.writer.add_scalar('train/loss_gen', loss_gen.item(), self.iters)
-        # Log predictions periodically
-        if (
-                self.iters % self.log_prediction_interval == 0
-                # and i > 0
-                and self.accelerator.is_main_process
-        ):
-            self._log_predictions(**display_kwargs)
-
-    def _log_predictions(self, gt_audio_codes, audio_code_lens, style_vectors, timbre_latents, base_targets):
-        """Log model predictions to tensorboard"""
-        unwrapped_model = self.accelerator.unwrap_model(self.model)
-        for i in range(len(gt_audio_codes)):
-            # reconstruct GT audio from audio codes
-            gt_wave = self.code2wav_fn(
-                gt_audio_codes[i:i + 1, :, :audio_code_lens[i]],
-                audio_code_lens[i:i + 1],
-            )
-            gt_wave = gt_wave.squeeze().cpu().numpy()
-            self.writer.add_audio(
-                f"recon/{i}",
-                gt_wave,
-                sample_rate=self.sr,
-                global_step=self.iters,
-            )
-            # predict text with asr decoder head
-            condition = base_targets[i:i + 1, :audio_code_lens[i]]
-
-            # predict audio with decoder head
-            pred_audio_codes = unwrapped_model.infer(condition, style_vectors[i:i + 1], timbre_latents[i:i + 1])
-            pred_wave = self.code2wav_fn(
-                pred_audio_codes,
-                audio_code_lens[i:i + 1],
-            )
-            pred_wave = pred_wave.squeeze().cpu().numpy()
-            self.writer.add_audio(
-                f"pred_wave/{i}",
-                pred_wave,
-                sample_rate=self.sr,
-                global_step=self.iters,
-            )
 
     def _save_checkpoint(self, epoch):
         """Save model checkpoint"""
         if self.iters % self.save_interval == 0 and self.accelerator.is_main_process:
             print('Saving checkpoint...')
             state = {
-                'net': self.model.state_dict(),
+                'net': self.encoder_model.state_dict(),
+                'net_asr_head': self.asr_head_model.state_dict(),
                 'optimizer': self.optimizer.state_dict(),
                 'scheduler': self.scheduler.state_dict(),
                 'iters': self.iters,
                 'epoch': epoch,
             }
-            save_path = osp.join(self.log_dir, 'DAR_epoch_%05d_step_%05d.pth' % (epoch, self.iters))
+            save_path = osp.join(self.log_dir, 'ASR_epoch_%05d_step_%05d.pth' % (epoch, self.iters))
             torch.save(state, save_path)
 
             # Find all checkpoints and remove old ones
-            checkpoints = glob.glob(osp.join(self.log_dir, 'DAR_epoch_*.pth'))
+            checkpoints = glob.glob(osp.join(self.log_dir, 'ASR_epoch_*.pth'))
             if len(checkpoints) > 1:
                 # Sort by step
                 checkpoints.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
@@ -502,7 +411,7 @@ class ARVCTrainer:
 
 def main(args):
     """Main entry point for training"""
-    trainer = ARVCTrainer(
+    trainer = ASRTrainer(
         config_path=args.config_path,
         start_epoch=args.epoch,
         mixed_precision=args.mixed_precision

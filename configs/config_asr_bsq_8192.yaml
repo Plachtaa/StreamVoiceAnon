@@ -1,0 +1,55 @@
+log_dir: "runs/asr_bsq_8192"
+log_interval: 10
+log_prediction_interval: 4000
+save_interval: 4000
+batch_size: 8 # per GPU
+num_workers: 0
+max_keep_n: 20
+pretrained_model: ""
+gradiant_accumulation_steps: 1
+load_only_params: true # set to true if do not want to load epoch numbers and optimizer parameters
+
+preprocess_params:
+  sr: 44100
+  min_duration: 1.0
+  max_duration: 45.0
+  spect_params:
+    n_fft: 2048
+    win_length: 2048
+    hop_length: 512
+    n_mels: 160
+    fmin: 0
+    fmax: null
+
+optimizer_params:
+  type: "MuonAdamW"
+  AdamW_betas: [0.9, 0.98]
+  AdamW_eps: 0.000001
+  Muon_weight_decay: 0.01
+  AdamW_weight_decay: 0.01
+  lr: 0.0001
+  muon_exclude_keys:
+    - "embedding"
+    - "lm_head"
+    - "output"
+    - "to_logits"
+  scheduler:
+    gamma: 0.999997
+    min_lr: 0.00001
+
+encoder:
+  config_path: "configs/hydra_arcs/speech_tokenizers/causal-encoder-lfq-8192.yaml"
+
+asr_head:
+  config_path: "configs/hydra_arcs/asr/asr_decoder_only.yaml"
+
+wav2vec_model:
+  config_path: "configs/hydra_arcs/wav2vec/w2v_bert2.yaml"
+
+style_encoder:
+  config_path: "configs/hydra_arcs/sv/campplus.yaml"
+  checkpoint_path: "pretrained_checkpoints/campplus_cn_common.bin"
+
+loss_params:
+  s2s_loss_weight: 1.0
+  l1_loss_weight: 1.0

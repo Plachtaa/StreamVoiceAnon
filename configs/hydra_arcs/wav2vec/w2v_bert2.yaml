@@ -1,0 +1,4 @@
+_target_: modules.wav2vec.w2v_bert2.Wav2Vec2BertEncoder
+input_sample_rate: 16000
+output_layer: [17]
+output_hidden_states: true

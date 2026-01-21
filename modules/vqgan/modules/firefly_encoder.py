@@ -523,16 +523,17 @@ class FireflyArchitecture(nn.Module):
         self.spec_transform = spec_transform
         self.downsample_factor = math.prod(self.quantizer.downsample_factor)
 
-    def forward(self, x: torch.Tensor, mask=None, target_len=None, g=None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, x_lens: torch.LongTensor=None, mask=None, target_len=None, g=None) -> torch.Tensor:
         if self.spec_transform is not None:
             x = self.spec_transform(x)
+            x_lens = x_lens // self.spec_transform.hop_length
 
         x = self.backbone(x)
         if mask is not None:
             x = x * mask
 
         if self.quantizer is not None:
-            vq_result = self.quantizer(x)
+            vq_result = self.quantizer(x, x_lens)
             x = vq_result.z
 
             if mask is not None:
