@@ -3,7 +3,8 @@
 
 # StreamVoiceAnon
 This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
-Relevant paper has been accepted by ICASSP 2026.  
+
+Relevant paper has been accepted by ICASSP 2026: [Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models](https://arxiv.org/abs/2601.13948).  
 
 ### Installation
 ```bash
@@ -69,7 +70,19 @@ This UI uses the same behavior as simulated online inference. It uses `--compile
  - [ ] Release fine-tuning code
  - [ ] Full MacOS support
  - [ ] More to be added
-
+### Citation
+If you find our repository valuable for your work, please consider giving a star to this repo and citing our paper:
+```
+@misc{kuzmin2026streamvoiceanonenhancingutilityrealtime,
+      title={Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models}, 
+      author={Nikita Kuzmin and Songting Liu and Kong Aik Lee and Eng Siong Chng},
+      year={2026},
+      eprint={2601.13948},
+      archivePrefix={arXiv},
+      primaryClass={eess.AS},
+      url={https://arxiv.org/abs/2601.13948}, 
+}
+```
 ### Acknowledgements
  - Co-author: https://github.com/paniquex
  - Computation resources: https://www.nscc.sg/
