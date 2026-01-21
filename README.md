@@ -3,7 +3,7 @@
 
 # StreamVoiceAnon
 This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
-Relevant paper has been submitted to ICASSP 2026.  
+Relevant paper has been accepted by ICASSP 2026.  
 
 ### Installation
 ```bash

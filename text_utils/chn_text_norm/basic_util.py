@@ -8,8 +8,8 @@
 __author__ = "Zhiyang Zhou <zyzhou@stu.xmu.edu.cn>"
 __data__ = "2019-05-02"
 
-from utils.text_utils.chn_text_norm.basic_class import *
-from utils.text_utils.chn_text_norm.basic_constant import *
+from .basic_class import *
+from .basic_constant import *
 
 
 def create_system(numbering_type=NUMBERING_TYPES[1]):

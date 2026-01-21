@@ -8,13 +8,13 @@ __data__ = "2019-05-03"
 
 import re
 
-from utils.text_utils.chn_text_norm.cardinal import Cardinal
-from utils.text_utils.chn_text_norm.date import Date
-from utils.text_utils.chn_text_norm.digit import Digit
-from utils.text_utils.chn_text_norm.fraction import Fraction
-from utils.text_utils.chn_text_norm.money import Money
-from utils.text_utils.chn_text_norm.percentage import Percentage
-from utils.text_utils.chn_text_norm.telephone import TelePhone
+from text_utils.chn_text_norm.cardinal import Cardinal
+from text_utils.chn_text_norm.date import Date
+from text_utils.chn_text_norm.digit import Digit
+from text_utils.chn_text_norm.fraction import Fraction
+from text_utils.chn_text_norm.money import Money
+from text_utils.chn_text_norm.percentage import Percentage
+from text_utils.chn_text_norm.telephone import TelePhone
 
 CURRENCY_NAMES = (
     "(人民币|美元|日元|英镑|欧元|马克|法郎|加拿大元|澳元|港币|先令|芬兰马克|爱尔兰镑|"

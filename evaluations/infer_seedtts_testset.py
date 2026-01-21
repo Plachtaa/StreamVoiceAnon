@@ -1,14 +1,4 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchaudio
-import torchaudio.compliance.kaldi as kaldi
-import librosa
-import hydra
-import yaml
-from omegaconf import OmegaConf, DictConfig
 import os
-from pathlib import Path
 from tqdm import tqdm
 from evaluations.infer_arvc import InferenceWrapper
 
@@ -17,9 +7,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inference Wrapper")
     parser.add_argument("--config_path", type=str, default="configs/config_firefly_arvcasr_8192_delay0_8.yaml")
     parser.add_argument("--checkpoint_path", type=str,
-                        default="runs/firefly_arvc_8192_delay4_0_8_grpo/DAR_epoch_00000_step_296060.pth")
-    parser.add_argument("--meta-file", type=str, default="../../seedtts_testset/en/non_para_reconstruct_meta.lst")
-    parser.add_argument("--output", type=str, default="../../seedtts_testset/en_output/vc_dynamic_delay1/")
+                        default="pretrained_checkpoints/dual_ar_delay_0_8.pth")
+    parser.add_argument("--meta-file", type=str, default="../seedtts_testset/en/non_para_reconstruct_meta.lst")
+    parser.add_argument("--output", type=str, default="../seedtts_testset/en_output/vc_dynamic_delay8/")
     parser.add_argument("--top_p", type=float, default=0.9)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--compile", action="store_true", help="Compile the model")

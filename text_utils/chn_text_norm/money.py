@@ -8,7 +8,7 @@ import re
 __author__ = "Zhiyang Zhou <zyzhou@stu.xmu.edu.cn>"
 __data__ = "2019-05-08"
 
-from utils.text_utils.chn_text_norm.cardinal import Cardinal
+from .cardinal import Cardinal
 
 
 class Money:

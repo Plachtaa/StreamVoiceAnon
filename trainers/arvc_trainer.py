@@ -78,6 +78,7 @@ class ARVCTrainer:
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(logging.Formatter('%(levelname)s:%(asctime)s: %(message)s'))
         logger.logger.addHandler(file_handler)
+        self.writer = SummaryWriter(log_dir=self.log_dir)
 
     def _init_training_params(self):
         """Initialize training parameters from config"""
@@ -100,8 +101,8 @@ class ARVCTrainer:
         # Initialize dataloader
         self.train_dataloader = build_dataloader(
             batch_size=self.batch_size,
-            num_workers=self.config['num_workers'],
-            prefetch_factor=12,
+            num_workers=0,  # self.config['num_workers'],
+            prefetch_factor=None,  # 12,
             preprocess_params=self.preprocess_params,
             epoch=self.start_epoch,
         )
@@ -335,9 +336,9 @@ class ARVCTrainer:
         """Process a single batch"""
         grad_norm_g = 0.0
         # Move batch to device
-        batch = [b.to(self.device, non_blocking=True) if b is not None else b for b in batch]
-        # waves, wave_lens, texts, text_lens, lang_tokens = batch
-        waves, mels, texts, wave_lens, mel_lens, text_lens = batch
+        text_list = batch[0]
+        batch = [b.to(self.device, non_blocking=True) if b is not None else b for b in batch[1:]]
+        texts, text_lens, mels, mel_lens, langs, waves, wave_lens = batch
         B = waves.size(0)
 
         # Resample to 16kHz for ASR models
@@ -353,6 +354,7 @@ class ARVCTrainer:
         semantic_codes, feature_lens = self.speech_tokenizer.encode(
             waves, wave_lens
         )
+        semantic_codes = semantic_codes.squeeze(0)
 
         style_vectors = self.calculate_style_vec(waves_16k, wave_lengths_16k)
 
@@ -362,8 +364,9 @@ class ARVCTrainer:
 
         # Forward pass and loss calculation
         with self.accelerator.autocast():
-            loss_codebook, loss_semantic = self.model(
+            loss_codebook, loss_semantic, _, _ = self.model(
                 x_lens=feature_lens,
+                condition=semantic_codes,
                 base_target=semantic_codes,
                 target=audio_codes,
                 style_vectors=style_vectors,
@@ -457,7 +460,7 @@ class ARVCTrainer:
                 global_step=self.iters,
             )
             # predict text with asr decoder head
-            condition = base_targets[0, i:i + 1, :audio_code_lens[i]]
+            condition = base_targets[i:i + 1, :audio_code_lens[i]]
 
             # predict audio with decoder head
             pred_audio_codes = unwrapped_model.infer(condition, style_vectors[i:i + 1], timbre_latents[i:i + 1])
