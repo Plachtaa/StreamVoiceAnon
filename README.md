@@ -1,6 +1,3 @@
-## ⚠️This repository is currently under construction.⚠️
-
-
 # StreamVoiceAnon
 This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
 
@@ -18,8 +15,6 @@ If running on Windows OS, please install the following:
 pip install triton-windows==3.2.0.post13
 ```
 Note that this is **compulsory** to run inference with RTF < 1.0
-
-Full MacOS support is still under construction.
 
 ### Download Pretrained Models
 ```bash
@@ -63,12 +58,9 @@ python evaluations/real-time-gui.py
 This UI uses the same behavior as simulated online inference. It uses `--compile` by default, so please ensure you have installed triton (as previously stated) before using it.
 
 ### TODO
- - [ ] Release privacy protection code
+ - [x] Release privacy protection code
  - [ ] Release metrics for voice conversion & speaker anonymization
  - [x] Release training code (for VC model)
- - [ ] Release training code (for content encoder)
- - [ ] Release fine-tuning code
- - [ ] Full MacOS support
  - [ ] More to be added
 ### Citation
 If you find our repository valuable for your work, please consider giving a star to this repo and citing our paper:
