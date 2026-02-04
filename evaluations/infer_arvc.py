@@ -8,11 +8,13 @@ import torch.nn.functional as F
 import torchaudio
 import torchaudio.compliance.kaldi as kaldi
 import librosa
+import numpy as np
 import hydra
 import yaml
 from omegaconf import OmegaConf, DictConfig
 from pathlib import Path
 from tqdm import tqdm
+import torch._inductor.config
 
 torch._inductor.config.coordinate_descent_tuning = True
 torch._inductor.config.triton.unique_kernel_names = True
@@ -214,31 +216,94 @@ class InferenceWrapper:
         resample_timbre = resample_timbre.mT
         return resample_timbre
 
-    def infer(self, src_path, ref_path, out_dir=None, output_path=None, delay=None, **sampling_kwargs):
+    def infer(
+            self,
+            src_path, # Path to source audio
+            ref_path, #  Path to reference audio OR list of paths to multiple reference audios
+            out_dir=None, # Output directory
+            output_path=None, # Specific output path
+            delay=None,       # Delay for decoder
+            ref_crop_lengths=None, # Optional cropping for reference audios
+            alpha=1.0,                # coefficient for noise for timbre embeddings
+            spk_emb_collate_type="concat_mel", # "avg" or "concat_mel"
+            save_result=True,       # save generated audio
+            **sampling_kwargs 
+    ):
         src_wav, _ = librosa.load(src_path, sr=self.sr)
-        ref_wav, _ = librosa.load(ref_path, sr=self.sr)
         src_wav_tensor = torch.from_numpy(src_wav).unsqueeze(0).to(self.device)
-        ref_wav_tensor = torch.from_numpy(ref_wav).unsqueeze(0).to(self.device)
         src_wav_16k_tensor = torchaudio.functional.resample(
             src_wav_tensor, orig_freq=self.sr, new_freq=16000
         )
-        ref_wav_16k_tensor = torchaudio.functional.resample(
-            ref_wav_tensor, orig_freq=self.sr, new_freq=16000
-        )
+        
+        if isinstance(ref_path, (str, Path)):
+            ref_paths = [ref_path]
+        else:
+            ref_paths = ref_path
+        
+        if ref_crop_lengths is None:
+            crop_lengths = [None] * len(ref_paths)
+        elif isinstance(ref_crop_lengths, (int, float)):
+            crop_lengths = [ref_crop_lengths] * len(ref_paths)
+        else:
+            crop_lengths = ref_crop_lengths
+            
+        ref_wav_list = []
+        for ref_p, crop_len in zip(ref_paths, crop_lengths):
+            ref_w, _ = librosa.load(ref_p, sr=self.sr)
+            if crop_len is not None:
+                crop_samples = int(crop_len * self.sr)
+                ref_w = ref_w[:crop_samples]
+            ref_wav_list.append(ref_w)
+
+        # calculate style vectors and timbre latents based on collation type
+        if spk_emb_collate_type == "avg" and len(ref_wav_list) > 1:
+            # avg embs: extract from each reference separately, then average
+            style_vectors_list = []
+            timbre_latents_list = []
+            
+            for ref_wav_single in ref_wav_list:
+                ref_wav_tensor_tmp = torch.from_numpy(ref_wav_single).unsqueeze(0).to(self.device)
+                ref_wav_16k_tensor_tmp = torchaudio.functional.resample(
+                    ref_wav_tensor_tmp, orig_freq=self.sr, new_freq=16000
+                )
+                ref_wave_lens_16k_tmp = torch.LongTensor([ref_wav_16k_tensor_tmp.size(1)]).to(self.device)
+                
+                style_vec_tmp = self.calculate_style_vec(ref_wav_16k_tensor_tmp, ref_wave_lens_16k_tmp)
+                timbre_latent_tmp = self.calculate_timbre_latent(
+                    ref_wav_16k_tensor_tmp, ref_wave_lens_16k_tmp
+                )
+                
+                style_vectors_list.append(style_vec_tmp)
+                timbre_latents_list.append(timbre_latent_tmp)
+            
+            style_vectors = torch.mean(torch.stack(style_vectors_list, dim=0), dim=0)
+            timbre_latents = torch.mean(torch.stack(timbre_latents_list, dim=0), dim=0)
+            
+            ref_wav = np.concatenate(ref_wav_list)
+            ref_wav_tensor = torch.from_numpy(ref_wav).unsqueeze(0).to(self.device)
+            
+        else:
+            # concat mels concatenate audios first, then extract embeddings
+            ref_wav = np.concatenate(ref_wav_list)
+            ref_wav_tensor = torch.from_numpy(ref_wav).unsqueeze(0).to(self.device)
+            ref_wav_16k_tensor = torchaudio.functional.resample(
+                ref_wav_tensor, orig_freq=self.sr, new_freq=16000
+            )
+            ref_wave_lens_16k = torch.LongTensor([ref_wav_16k_tensor.size(1)]).to(self.device)
+            
+            style_vectors = self.calculate_style_vec(ref_wav_16k_tensor, ref_wave_lens_16k)
+            timbre_latents = self.calculate_timbre_latent(
+                ref_wav_16k_tensor, ref_wave_lens_16k
+            )
+        
         src_wave_lens = torch.LongTensor([src_wav_tensor.size(1)]).to(self.device)
         ref_wave_lens = torch.LongTensor([ref_wav_tensor.size(1)]).to(self.device)
         src_wave_lens_16k = torch.LongTensor([src_wav_16k_tensor.size(1)]).to(self.device)
-        ref_wave_lens_16k = torch.LongTensor([ref_wav_16k_tensor.size(1)]).to(self.device)
 
         # audio features
         ref_audio_codes, ref_quantized_features, ref_target_lengths, ref_target_size = self.wav2target_fn(
             ref_wav_tensor,
             ref_wave_lens,
-        )
-
-        style_vectors = self.calculate_style_vec(ref_wav_16k_tensor, ref_wave_lens_16k)
-        timbre_latents = self.calculate_timbre_latent(
-            ref_wav_16k_tensor, ref_wave_lens_16k
         )
 
         src_content_codes, src_code_lengths = self.speech_tokenizer.encode(
@@ -252,7 +317,15 @@ class InferenceWrapper:
 
         if delay is not None:
             self.model.set_delay(delay=delay)
-        # vc_codes = self.model.infer(src_content_codes, style_vectors, timbre_latents)
+
+        mean, std = style_vectors.mean(), style_vectors.std()
+        noise = torch.randn_like(style_vectors) * std + mean
+        style_vectors = alpha * style_vectors + (1 - alpha) * noise
+
+        mean, std = timbre_latents.mean(), timbre_latents.std()
+        noise = torch.randn_like(timbre_latents) * std + mean
+        timbre_latents = alpha * timbre_latents + (1 - alpha) * noise
+
         with torch.autocast(device_type="cuda", dtype=torch.float16):
             vc_codes = self.model.generate(
                 ref_content_codes=ref_content_codes,
@@ -269,7 +342,10 @@ class InferenceWrapper:
 
         # determine output file name
         src_name = Path(src_path).stem
-        ref_name = Path(ref_path).stem
+        if isinstance(ref_path, (str, Path)):
+            ref_name = Path(ref_path).stem
+        else:
+            ref_name = "_".join([Path(p).stem for p in ref_paths])
         out_name = f"{src_name}_{ref_name}.wav"
         if output_path:
             out_path = Path(output_path)
@@ -278,25 +354,68 @@ class InferenceWrapper:
         else:
             out_path = Path(src_path).parent / out_name
         # save output
-        torchaudio.save(out_path, torch.from_numpy(pred_wave).unsqueeze(0), self.sr)
-        print(f"Output saved to {out_path}")
+        if save_result:
+            torchaudio.save(out_path, torch.from_numpy(pred_wave).unsqueeze(0), self.sr)
+            print(f"Output saved to {out_path}")
         return pred_wave
 
-    def calculate_prompt(self, ref_wav_tensor):
-        ref_wav_16k_tensor = torchaudio.functional.resample(
-            ref_wav_tensor, orig_freq=self.sr, new_freq=16000
-        )
-        ref_wave_lens = torch.LongTensor([ref_wav_tensor.size(1)]).to(self.device)
-        ref_wave_lens_16k = torch.LongTensor([ref_wav_16k_tensor.size(1)]).to(self.device)
-        # audio features
-        ref_audio_codes, ref_quantized_features, ref_target_lengths, ref_target_size = self.wav2target_fn(
-            ref_wav_tensor,
-            ref_wave_lens,
-        )
-
+    def calculate_prompt(self, ref_wav_tensors, alpha=1.0, spk_emb_collate_type="concat_mel"):
+        if isinstance(ref_wav_tensors, list):
+            ref_wav_list = ref_wav_tensors
+        else:
+            ref_wav_list = [ref_wav_tensors]
+        
+        # calculate style vectors and timbre latents based on collation type
+        if spk_emb_collate_type == "avg" and len(ref_wav_list) > 1:
+            # avg embs extract from each reference separately, then average
+            style_vectors_list = []
+            timbre_latents_list = []
+            
+            for ref_wav_tensor_tmp in ref_wav_list:
+                ref_wav_16k_tensor_tmp = torchaudio.functional.resample(
+                    ref_wav_tensor_tmp, orig_freq=self.sr, new_freq=16000
+                )
+                ref_wave_lens_16k_tmp = torch.LongTensor([ref_wav_16k_tensor_tmp.size(1)]).to(self.device)
+                
+                style_vec_tmp = self.calculate_style_vec(ref_wav_16k_tensor_tmp, ref_wave_lens_16k_tmp)
+                timbre_latent_tmp = self.calculate_timbre_latent(
+                    ref_wav_16k_tensor_tmp, ref_wave_lens_16k_tmp
+                )
+                
+                style_vectors_list.append(style_vec_tmp)
+                timbre_latents_list.append(timbre_latent_tmp)
+            
+            style_vectors = torch.mean(torch.stack(style_vectors_list, dim=0), dim=0)
+            timbre_latents = torch.mean(torch.stack(timbre_latents_list, dim=0), dim=0)
+            
+            ref_wav_tensor = torch.cat(ref_wav_list, dim=-1)
+            
+        else:
+            # concat mels concatenate audios first, then extract embeddings
+            ref_wav_tensor = torch.cat(ref_wav_list, dim=-1) if len(ref_wav_list) > 1 else ref_wav_list[0]
+            ref_wav_16k_tensor = torchaudio.functional.resample(
+                ref_wav_tensor, orig_freq=self.sr, new_freq=16000
+            )
+            ref_wave_lens_16k = torch.LongTensor([ref_wav_16k_tensor.size(1)]).to(self.device)
+        
         style_vectors = self.calculate_style_vec(ref_wav_16k_tensor, ref_wave_lens_16k)
         timbre_latents = self.calculate_timbre_latent(
             ref_wav_16k_tensor, ref_wave_lens_16k
+        )
+
+        # apply alpha noise mixing for anonymization
+        mean, std = style_vectors.mean(), style_vectors.std()
+        noise = torch.randn_like(style_vectors) * std + mean
+        style_vectors = alpha * style_vectors + (1 - alpha) * noise
+
+        mean, std = timbre_latents.mean(), timbre_latents.std()
+        noise = torch.randn_like(timbre_latents) * std + mean
+        timbre_latents = alpha * timbre_latents + (1 - alpha) * noise
+
+        ref_wave_lens = torch.LongTensor([ref_wav_tensor.size(1)]).to(self.device)
+        ref_audio_codes, ref_quantized_features, ref_target_lengths, ref_target_size = self.wav2target_fn(
+            ref_wav_tensor,
+            ref_wave_lens,
         )
 
         ref_content_codes, _ = self.speech_tokenizer.encode(
@@ -304,7 +423,7 @@ class InferenceWrapper:
         )
         ref_content_codes = ref_content_codes.squeeze(0)
 
-        return ref_audio_codes, ref_content_codes, style_vectors, timbre_latents
+        return ref_audio_codes, ref_content_codes, style_vectors, timbre_latents, ref_wav_tensor
 
     def setup_stream_caches(self,
                             encode_window_frames=96,
@@ -326,8 +445,11 @@ class InferenceWrapper:
         self.src_condition4delay_prefilled = False
 
 
-    def prefill_prompt(self, ref_wav_tensor, max_prompt_frames=256, delay=4,):
-        ref_audio_codes, ref_content_codes, style_vectors, timbre_latents = self.calculate_prompt(ref_wav_tensor)
+    def prefill_prompt(self, ref_wav_tensors, max_prompt_frames=256, delay=4, 
+                    alpha=1.0, spk_emb_collate_type="concat_mel"):
+        ref_audio_codes, ref_content_codes, style_vectors, timbre_latents, ref_wav_tensor = self.calculate_prompt(
+            ref_wav_tensors, alpha=alpha, spk_emb_collate_type=spk_emb_collate_type
+        )
         # restrict prompt len
         self.ref_audio_codes = ref_audio_codes[:, :, :max_prompt_frames]
         self.ref_content_codes = ref_content_codes[:, :max_prompt_frames]
@@ -429,7 +551,10 @@ class InferenceWrapper:
             # decode with vocoder
             vc_codes_chunk = self.pred_codes[..., -self.decode_window_frames:]
             pad_len = self.decode_window_frames - vc_codes_chunk.size(-1)
-            vc_codes_chunk = F.pad(vc_codes_chunk, (pad_len, 0), value=0)
+            if pad_len > 0:  # ad-hoc but helps to avoid spiking in the start of generated audio
+                ref_pad = self.ref_audio_codes[..., -pad_len:]
+                vc_codes_chunk = torch.cat([ref_pad, vc_codes_chunk], dim=-1)
+            # vc_codes_chunk = F.pad(vc_codes_chunk, (pad_len, 0), value=0)
 
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
@@ -454,25 +579,59 @@ class InferenceWrapper:
             self.src_content_codes = self.src_content_codes[..., -2048:]
 
             return pred_wave[..., -2048 * self.decode_chunk_frames:].squeeze(1)
+    
     def stream_infer(
             self,
             src_path,
             ref_path,
             out_dir=None,
-            encode_window_frames=128,  # context size assigned to encoder
-            decode_window_frames=64,  # context size assigned to vocoder
-            max_prompt_frames=256,  # maximum length of the prompt
-            max_seq_frames=768,   # maximum length of the sequence
-            buffer_frames=32,  # when dealing with a long audio, how many frames to keep in memory when refilling prompt
-            decode_chunk_frames=1,  # how many frames for vocoder to decode at once
-            delay=None,  # delay for the decoder in frames, 0 means no delay
+            encode_window_frames=128,
+            decode_window_frames=64,
+            max_prompt_frames=256,
+            max_seq_frames=768,
+            buffer_frames=32,
+            decode_chunk_frames=1,
+            delay=None,
+            ref_crop_lengths=None,
+            alpha=1.0,
+            spk_emb_collate_type="concat_mel",
+            save_result=True
     ):
         src_wav, _ = librosa.load(src_path, sr=self.sr)
-        ref_wav, _ = librosa.load(ref_path, sr=self.sr)
         src_wav_tensor = torch.from_numpy(src_wav).unsqueeze(0).to(self.device)
-        ref_wav_tensor = torch.from_numpy(ref_wav).unsqueeze(0).to(self.device)
+        
+        # single or multi references
+        if isinstance(ref_path, (str, Path)):
+            ref_paths = [ref_path]
+        else:
+            ref_paths = ref_path
+        
+        # handle difference crop lentghs for multiple references
+        if ref_crop_lengths is None:
+            crop_lengths = [None] * len(ref_paths)
+        elif isinstance(ref_crop_lengths, (int, float)):
+            crop_lengths = [ref_crop_lengths] * len(ref_paths)
+        else:
+            crop_lengths = ref_crop_lengths
+            
+        # load and optionally crop reference audios
+        ref_wav_tensors = []
+        for ref_p, crop_len in zip(ref_paths, crop_lengths):
+            ref_w, _ = librosa.load(ref_p, sr=self.sr)
+            if crop_len is not None:
+                crop_samples = int(crop_len * self.sr)
+                ref_w = ref_w[:crop_samples]
+            ref_wav_tensor = torch.from_numpy(ref_w).unsqueeze(0).to(self.device)
+            ref_wav_tensors.append(ref_wav_tensor)
 
-        self.prefill_prompt(ref_wav_tensor, max_prompt_frames=max_prompt_frames, delay=delay,)
+        self.prefill_prompt(
+            ref_wav_tensors, 
+            max_prompt_frames=max_prompt_frames, 
+            delay=delay,
+            alpha=alpha,
+            spk_emb_collate_type=spk_emb_collate_type
+        )
+        
         self.setup_stream_caches(
             encode_window_frames=encode_window_frames,
             decode_window_frames=decode_window_frames,
@@ -487,16 +646,12 @@ class InferenceWrapper:
 
         # divide src_wav_tensor into chunks of 2048 * decode_chunk_frames
         src_wav_chunks = src_wav_tensor.unfold(1, 2048 * decode_chunk_frames, 2048 * decode_chunk_frames).squeeze()
-        max_window_len = encode_window_frames * 2048
-        src_content_codes = []
-        pred_codes = []
         pred_wave_chunks = []
 
         for src_wav_chunk in tqdm(src_wav_chunks):
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
 
-            # Synchronize before starting
             torch.cuda.synchronize()
             start_event.record()
 
@@ -504,27 +659,29 @@ class InferenceWrapper:
             pred_wave_chunks.append(pred_wave)
 
             end_event.record()
-            # Synchronize after recording
             torch.cuda.synchronize()
 
             elapsed_time_ms = start_event.elapsed_time(end_event)
             print(f"Time taken: {elapsed_time_ms}ms")
-
 
         pred_wave = torch.cat(pred_wave_chunks, dim=-1)
         pred_wave = pred_wave.squeeze().cpu().numpy()
 
         # determine output file name
         src_name = Path(src_path).stem
-        ref_name = Path(ref_path).stem
+        if isinstance(ref_path, (str, Path)):
+            ref_name = Path(ref_path).stem
+        else:
+            ref_name = "_".join([Path(p).stem for p in ref_paths])
         out_name = f"{src_name}_{ref_name}.wav"
         if out_dir:
             out_path = Path(out_dir) / out_name
         else:
             out_path = Path(src_path).parent / out_name
         # save output
-        torchaudio.save(out_path, torch.from_numpy(pred_wave).float().unsqueeze(0), self.sr)
-        print(f"Output saved to {out_path}")
+        if save_result:
+            torchaudio.save(out_path, torch.from_numpy(pred_wave).float().unsqueeze(0), self.sr)
+            print(f"Output saved to {out_path}")
         return pred_wave
 
 if __name__ == "__main__":
@@ -533,19 +690,20 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/config_firefly_arvcasr_8192_delay0_8.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="pretrained_checkpoints/dual_ar_delay_0_8.pth")
     parser.add_argument("--src_path", type=str, default="./test_waves/azuma_0.wav")
-    parser.add_argument("--ref_path", type=str, default="./test_waves/trump_0.wav")
+    parser.add_argument("--ref_path", type=str, nargs='+', default="./test_waves/trump_0.wav", help="One or more reference audio paths")
     parser.add_argument("--out_dir", type=str, default="./audio_outputs/")
     parser.add_argument("--compile", action="store_true", help="Compile the model")
-    parser.add_argument("--delay", type=int, default=2, help="Delay for the decoder (in frames), 0 means no delay")  # only used for dynamic-delay model
+    parser.add_argument("--delay", type=int, default=2, help="Delay for the decoder (in frames), 0 means no delay") # # only used for dynamic-delay model
+    parser.add_argument("--ref_crop_lengths", type=float, nargs='+', default=None, help="Crop lengths in seconds for each reference audio")
 
     # streaming args
     parser.add_argument("--simulate_streaming", action="store_true", help="Simulate streaming inference")
-    parser.add_argument("--encode_window_frames", type=int, default=128, help="Encoder context window size in frames")  # only used for streaming
-    parser.add_argument("--decode_window_frames", type=int, default=64, help="Vocoder context window size in frames")  # only used for streaming
-    parser.add_argument("--max_prompt_frames", type=int, default=256, help="Maximum prompt length in frames")  # only used for streaming
-    parser.add_argument("--max_seq_frames", type=int, default=768, help="Maximum sequence length in frames")  # only used for streaming
-    parser.add_argument("--buffer_frames", type=int, default=32, help="Buffer frames when refilling prompt")  # only used for streaming
-    parser.add_argument("--decode_chunk_frames", type=int, default=1, help="Decode chunk size in frames")  # only used for streaming
+    parser.add_argument("--encode_window_frames", type=int, default=128, help="Encoder context window size in frames") # only used for streaming
+    parser.add_argument("--decode_window_frames", type=int, default=64, help="Vocoder context window size in frames") # only used for streaming
+    parser.add_argument("--max_prompt_frames", type=int, default=256, help="Maximum prompt length in frames") # only used for streaming
+    parser.add_argument("--max_seq_frames", type=int, default=768, help="Maximum sequence length in frames") # only used for streaming
+    parser.add_argument("--buffer_frames", type=int, default=32, help="Buffer frames when refilling prompt") # only used for streaming
+    parser.add_argument("--decode_chunk_frames", type=int, default=1, help="Decode chunk size in frames") # only used for streaming
     args = parser.parse_args()
     config_path = args.config_path
     checkpoint_path = args.checkpoint_path
@@ -557,11 +715,11 @@ if __name__ == "__main__":
         compile_encoder=args.compile if args.simulate_streaming else False,
     )
     src_path = args.src_path
-    ref_path = args.ref_path
+    ref_path = args.ref_path if isinstance(args.ref_path, list) and len(args.ref_path) > 1 else args.ref_path[0] if isinstance(args.ref_path, list) else args.ref_path
     out_dir = args.out_dir
     # Create output directory if it doesn't exist
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    # vc_wav = infer_wrapper.infer(src_path, ref_path, out_dir, delay=args.delay)
+    
     if args.simulate_streaming:
         vc_wav = infer_wrapper.stream_infer(
             src_path,
@@ -573,7 +731,7 @@ if __name__ == "__main__":
             max_seq_frames=args.max_seq_frames,
             buffer_frames=args.buffer_frames,
             decode_chunk_frames=args.decode_chunk_frames,
-            delay=args.delay)
+            delay=args.delay,
+            ref_crop_lengths=args.ref_crop_lengths)
     else:
-        vc_wav = infer_wrapper.infer(src_path, ref_path, out_dir, delay=args.delay)
-
+        vc_wav = infer_wrapper.infer(src_path, ref_path, out_dir, delay=args.delay, ref_crop_lengths=args.ref_crop_lengths)
