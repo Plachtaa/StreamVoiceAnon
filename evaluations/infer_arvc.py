@@ -699,6 +699,7 @@ if __name__ == "__main__":
     parser.add_argument("--compile", action="store_true", help="Compile the model")
     parser.add_argument("--delay", type=int, default=2, help="Delay for the decoder (in frames), 0 means no delay") # # only used for dynamic-delay model
     parser.add_argument("--ref_crop_lengths", type=float, nargs='+', default=None, help="Crop lengths in seconds for each reference audio")
+    parser.add_argument("--alpha", type=float, default=1.0, help="Noise mixing coefficient for speaker embeddings (1.0 = no noise, lower = more anonymization)")
 
     # streaming args
     parser.add_argument("--simulate_streaming", action="store_true", help="Simulate streaming inference")
@@ -736,6 +737,7 @@ if __name__ == "__main__":
             buffer_frames=args.buffer_frames,
             decode_chunk_frames=args.decode_chunk_frames,
             delay=args.delay,
-            ref_crop_lengths=args.ref_crop_lengths)
+            ref_crop_lengths=args.ref_crop_lengths,
+            alpha=args.alpha)
     else:
-        vc_wav = infer_wrapper.infer(src_path, ref_path, out_dir, delay=args.delay, ref_crop_lengths=args.ref_crop_lengths)
+        vc_wav = infer_wrapper.infer(src_path, ref_path, out_dir, delay=args.delay, ref_crop_lengths=args.ref_crop_lengths, alpha=args.alpha)
