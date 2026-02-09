@@ -68,7 +68,14 @@ Below is an example command to launch single node multi-GPU training with stream
 ```bash
 accelerate launch trainers/arvc_trainer.py --config_path configs/config_firefly_arvcasr_8192_delay0_8.yaml --mixed-precision bf16
 ```
+
+Above command uses default content encoder and trains only the VC model. To train your own content encoder, 
+run the following command instead:
+```bash
+accelerate launch trainers/asr_trainer.py --config_path configs/config_asr_bsq_8192.yaml --mixed-precision bf16
+```
 To customize model config or training datasets, we encourage users to read config files or training code.
+
 
 ## Inference
 Offline inference 
