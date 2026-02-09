@@ -144,8 +144,9 @@ This UI uses the same behavior as simulated online inference. It uses `--compile
 
 ## TODO
  - [x] Release privacy protection code
- - [ ] Release metrics for voice conversion & speaker anonymization
- - [x] Release training code (for VC model)
+ - [ ] Release metrics for speaker anonymization
+ - [x] Release training code (for VC model and ASR content encoder)
+ - [x] Real-time GUI for demo
  - [ ] Full MacOS support
  - [ ] More to be added
 ## Citation
