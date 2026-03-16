@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
 
     class GUI:
-        def __init__(self, args) -> None:
+        def __init__(self, args, model_set=None, vad_model=None) -> None:
             self.gui_config = GUIConfig()
             self.config = Config()
             self.function = "vc"
@@ -126,9 +126,15 @@ if __name__ == "__main__":
             self.input_devices_indices = None
             self.output_devices_indices = None
             self.stream = None
-            self.model_set = load_models(args)
-            from funasr import AutoModel
-            self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4")
+            if model_set is not None:
+                self.model_set = model_set
+            else:
+                self.model_set = load_models(args)
+            if vad_model is not None:
+                self.vad_model = vad_model
+            else:
+                from funasr import AutoModel
+                self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4")
             self.update_devices()
             self.launcher()
 
@@ -405,8 +411,12 @@ if __name__ == "__main__":
                     self.stop_stream()
 
         def set_values(self, values):
-            if len(values["reference_audio_path"].strip()) == 0:
+            values["reference_audio_path"] = values["reference_audio_path"].strip()
+            if len(values["reference_audio_path"]) == 0:
                 sg.popup("Choose an audio file")
+                return False
+            if not os.path.exists(values["reference_audio_path"]):
+                sg.popup(f"Audio file not found: {values['reference_audio_path']}")
                 return False
             pattern = re.compile("[^\x00-\x7F]+")
             if pattern.findall(values["reference_audio_path"]):
@@ -464,6 +474,37 @@ if __name__ == "__main__":
             else:
                 self.resampler2 = None
             self.n_frame_delay = self.gui_config.n_frame_delay
+            # Warmup: run a few dummy chunks to trigger torch.compile before starting the stream
+            n_warmup_chunks = int(self.gui_config.n_frame_delay) + 3
+            warmup_layout = [
+                [sg.Text("Compiling & warming up... (first run may take a few minutes)",
+                         key="warmup_status", size=(55, 1), font=("Helvetica", 11))],
+                [sg.ProgressBar(n_warmup_chunks, orientation='h', size=(40, 20),
+                                key='warmup_progress', bar_color=("green", "white"))],
+            ]
+            warmup_window = sg.Window("Warming Up", warmup_layout, finalize=True,
+                                      no_titlebar=False, keep_on_top=True)
+            warmup_window.read(timeout=0)
+            dummy_wav = torch.zeros(self.block_frame, device=self.config.device, dtype=torch.float32)
+            for i in range(n_warmup_chunks):
+                warmup_window["warmup_status"].update(
+                    f"Warming up chunk {i+1}/{n_warmup_chunks}... (compiling kernels)")
+                warmup_window["warmup_progress"].update(i)
+                warmup_window.read(timeout=0)
+                custom_infer(
+                    self.model_set,
+                    self.reference_wav,
+                    self.gui_config.reference_audio_path,
+                    dummy_wav,
+                    self.n_frame_delay,
+                )
+            warmup_window["warmup_status"].update("Warmup complete!")
+            warmup_window["warmup_progress"].update(n_warmup_chunks)
+            warmup_window.read(timeout=0)
+            warmup_window.close()
+            # Reset state after warmup so real audio starts fresh
+            global reference_wav_name
+            reference_wav_name = ""
             self.vad_cache = {}
             self.vad_chunk_size = min(500, int(1000 * self.gui_config.block_frame * 2048 / 44100))
             self.vad_speech_detected = False
@@ -664,4 +705,31 @@ if __name__ == "__main__":
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
-    gui = GUI(args)
+    # Show loading progress window while models load
+    sg.theme("LightBlue3")
+    progress_layout = [
+        [sg.Text("Loading models...", key="load_status", size=(50, 1), font=("Helvetica", 12))],
+        [sg.ProgressBar(100, orientation='h', size=(40, 20), key='progress', bar_color=("green", "white"))],
+    ]
+    progress_window = sg.Window("Stream-VC Loading", progress_layout, finalize=True, no_titlebar=False, keep_on_top=True)
+    progress_window.read(timeout=0)
+
+    progress_window["load_status"].update("Step 1/3: Loading models...")
+    progress_window["progress"].update(10)
+    progress_window.read(timeout=0)
+
+    model_set = load_models(args)
+
+    progress_window["load_status"].update("Step 2/3: Loading VAD model...")
+    progress_window["progress"].update(50)
+    progress_window.read(timeout=0)
+
+    from funasr import AutoModel
+    vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4")
+
+    progress_window["load_status"].update("Step 3/3: Ready!")
+    progress_window["progress"].update(100)
+    progress_window.read(timeout=0)
+    progress_window.close()
+
+    gui = GUI(args, model_set=model_set, vad_model=vad_model)
