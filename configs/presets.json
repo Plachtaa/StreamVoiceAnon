@@ -1,0 +1,26 @@
+{
+    "Max Privacy": {
+        "description": "Strongest anonymization. Full noise mixing.",
+        "alpha": 0.0,
+        "block_frame": 1,
+        "n_frame_delay": 2
+    },
+    "Balanced": {
+        "description": "Mid-point between privacy and voice fidelity.",
+        "alpha": 0.5,
+        "block_frame": 1,
+        "n_frame_delay": 2
+    },
+    "Max Quality": {
+        "description": "No noise mixing. Preserves the reference voice keeping the highest quality.",
+        "alpha": 1.0,
+        "block_frame": 1,
+        "n_frame_delay": 4
+    },
+    "Low Latency": {
+        "description": "Fastest response. Minimal decoder delay.",
+        "alpha": 0.7,
+        "block_frame": 1,
+        "n_frame_delay": 1
+    }
+}

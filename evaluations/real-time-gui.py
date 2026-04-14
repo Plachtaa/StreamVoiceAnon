@@ -124,8 +124,40 @@ if __name__ == "__main__":
             self.output_devices = []
             self.input_devices_indices = []
             self.output_devices_indices = []
+            self.presets = self.load_presets()
+            self._applying_preset = False
             self.update_devices()
             self.build_ui()
+
+        def load_presets(self):
+            try:
+                with open("configs/presets.json", "r") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+
+        def apply_preset(self, name):
+            if name == "Custom" or name not in self.presets:
+                self.preset_desc_label.configure(text="")
+                return
+            p = self.presets[name]
+            self._applying_preset = True
+            try:
+                if "alpha" in p:
+                    self.alpha_slider.set(p["alpha"])
+                    self.alpha_label.configure(text=f"{p['alpha']:.2f}")
+                    self.gui_config.alpha = p["alpha"]
+                if "block_frame" in p:
+                    self.bf_slider.set(p["block_frame"])
+                    self.bf_label.configure(text=str(int(p["block_frame"])))
+                    self.gui_config.block_frame = int(p["block_frame"])
+                if "n_frame_delay" in p:
+                    self.df_slider.set(p["n_frame_delay"])
+                    self.df_label.configure(text=str(int(p["n_frame_delay"])))
+                    self.gui_config.n_frame_delay = int(p["n_frame_delay"])
+            finally:
+                self._applying_preset = False
+            self.preset_desc_label.configure(text=p.get("description", ""))
 
         # ── Config persistence ───────────────────────────────────────────
         def load_config(self):
@@ -183,6 +215,7 @@ if __name__ == "__main__":
                 "alpha": self.gui_config.alpha,
                 "block_frame": self.gui_config.block_frame,
                 "n_frame_delay": self.gui_config.n_frame_delay,
+                "preset": self.preset_var.get(),
             }
             os.makedirs("configs/inuse", exist_ok=True)
             with open("configs/inuse/config.json", "w") as j:
@@ -307,6 +340,24 @@ if __name__ == "__main__":
             ctk.CTkLabel(tab_vc, text="Anonymization",
                          font=("", 14, "bold")).grid(
                 row=row, column=0, columnspan=3, padx=15, pady=(5, 8), sticky="w")
+            row += 1
+
+            ctk.CTkLabel(tab_vc, text="Preset:", width=90, anchor="w").grid(
+                row=row, column=0, padx=(15, 5), pady=4, sticky="w")
+            preset_values = ["Custom"] + list(self.presets.keys())
+            self.preset_var = ctk.StringVar(value=data.get("preset", "Custom"))
+            self.preset_menu = ctk.CTkOptionMenu(
+                tab_vc, values=preset_values, variable=self.preset_var,
+                command=self.on_preset_change)
+            self.preset_menu.grid(row=row, column=1, columnspan=2,
+                                  padx=(5, 15), pady=4, sticky="ew")
+            row += 1
+
+            self.preset_desc_label = ctk.CTkLabel(
+                tab_vc, text="", font=("", 10),
+                text_color=COLORS["gray"], anchor="w", justify="left")
+            self.preset_desc_label.grid(
+                row=row, column=0, columnspan=3, padx=15, pady=(0, 6), sticky="w")
             row += 1
 
             ctk.CTkLabel(tab_vc, text="Alpha:", width=90, anchor="w").grid(
@@ -471,6 +522,11 @@ if __name__ == "__main__":
                 self.status_bar, text="--", font=("", 11, "bold"))
             self.sr_status.grid(row=0, column=7, padx=(0, 15), pady=6)
 
+            saved_preset = data.get("preset", "Custom")
+            if saved_preset in self.presets:
+                self.preset_desc_label.configure(
+                    text=self.presets[saved_preset].get("description", ""))
+
             self.root.mainloop()
 
         # ── Event handlers ───────────────────────────────────────────────
@@ -488,6 +544,7 @@ if __name__ == "__main__":
         def on_alpha_change(self, value):
             self.alpha_label.configure(text=f"{value:.2f}")
             self.gui_config.alpha = value
+            self._mark_custom_preset()
             global reference_wav_name
             reference_wav_name = ""
 
@@ -495,11 +552,23 @@ if __name__ == "__main__":
             val = int(round(value))
             self.bf_label.configure(text=str(val))
             self.gui_config.block_frame = val
+            self._mark_custom_preset()
 
         def on_delay_frame_change(self, value):
             val = int(round(value))
             self.df_label.configure(text=str(val))
             self.gui_config.n_frame_delay = val
+            self._mark_custom_preset()
+
+        def on_preset_change(self, name):
+            self.apply_preset(name)
+
+        def _mark_custom_preset(self):
+            if self._applying_preset:
+                return
+            if self.preset_var.get() != "Custom":
+                self.preset_var.set("Custom")
+                self.preset_desc_label.configure(text="")
 
         def on_hostapi_change(self, value):
             self.update_devices(hostapi_name=value)
