@@ -90,6 +90,65 @@ if __name__ == "__main__":
         "status_bg": "#16213e",
     }
 
+    # ── Tooltip helper ───────────────────────────────────────────────────
+    class Tooltip:
+        def __init__(self, widget, text, delay=450, wraplength=280):
+            self.widget = widget
+            self.text = text
+            self.delay = delay
+            self.wraplength = wraplength
+            self._tip = None
+            self._after_id = None
+            widget.bind("<Enter>", self._schedule, add="+")
+            widget.bind("<Leave>", self._hide, add="+")
+            widget.bind("<ButtonPress>", self._hide, add="+")
+
+        def _schedule(self, _event=None):
+            self._cancel()
+            self._after_id = self.widget.after(self.delay, self._show)
+
+        def _cancel(self):
+            if self._after_id is not None:
+                try:
+                    self.widget.after_cancel(self._after_id)
+                except Exception:
+                    pass
+                self._after_id = None
+
+        def _show(self):
+            if self._tip is not None:
+                return
+            try:
+                x = self.widget.winfo_rootx() + 16
+                y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+            except Exception:
+                return
+            tip = ctk.CTkToplevel(self.widget)
+            tip.wm_overrideredirect(True)
+            tip.wm_geometry(f"+{x}+{y}")
+            try:
+                tip.attributes("-topmost", True)
+            except Exception:
+                pass
+            frame = ctk.CTkFrame(
+                tip, corner_radius=6, fg_color="#2b2b3e",
+                border_width=1, border_color="#4a4a5e")
+            frame.pack()
+            ctk.CTkLabel(
+                frame, text=self.text, font=("", 11),
+                wraplength=self.wraplength, justify="left",
+                text_color="#e5e5ef").pack(padx=10, pady=6)
+            self._tip = tip
+
+        def _hide(self, _event=None):
+            self._cancel()
+            if self._tip is not None:
+                try:
+                    self._tip.destroy()
+                except Exception:
+                    pass
+                self._tip = None
+
     # ── GUI Config ───────────────────────────────────────────────────────
     class GUIConfig:
         def __init__(self):
@@ -243,7 +302,7 @@ if __name__ == "__main__":
             self.sidebar = ctk.CTkFrame(self.root, width=200, corner_radius=0,
                                         fg_color=COLORS["sidebar_bg"])
             self.sidebar.grid(row=0, column=0, sticky="nsew")
-            self.sidebar.grid_rowconfigure(4, weight=1)
+            self.sidebar.grid_rowconfigure(7, weight=1)
 
             ctk.CTkLabel(
                 self.sidebar, text="Stream\nVoice Anon",
@@ -270,35 +329,55 @@ if __name__ == "__main__":
             )
             self.stop_btn.grid(row=3, column=0, padx=20, pady=(0, 5), sticky="new")
 
+            # Preset selector
+            ctk.CTkLabel(
+                self.sidebar, text="PRESET", font=("", 11, "bold"),
+                text_color=COLORS["gray"],
+            ).grid(row=4, column=0, padx=20, pady=(18, 4), sticky="sw")
+
+            preset_values = ["Custom"] + list(self.presets.keys())
+            self.preset_var = ctk.StringVar(value=data.get("preset", "Custom"))
+            self.preset_menu = ctk.CTkOptionMenu(
+                self.sidebar, values=preset_values, variable=self.preset_var,
+                command=self.on_preset_change, width=170)
+            self.preset_menu.grid(row=5, column=0, padx=20, pady=2, sticky="ew")
+
+            self.preset_desc_label = ctk.CTkLabel(
+                self.sidebar, text="", font=("", 10),
+                text_color=COLORS["gray"], anchor="w", justify="left",
+                wraplength=160)
+            self.preset_desc_label.grid(
+                row=6, column=0, padx=20, pady=(4, 0), sticky="nw")
+
             # Mode selector at bottom
             self.mode_var = ctk.StringVar(value="vc")
             ctk.CTkLabel(
                 self.sidebar, text="MODE", font=("", 11, "bold"),
                 text_color=COLORS["gray"],
-            ).grid(row=5, column=0, padx=20, pady=(10, 4), sticky="sw")
+            ).grid(row=8, column=0, padx=20, pady=(10, 4), sticky="sw")
 
-            ctk.CTkRadioButton(
+            self.mode_vc_radio = ctk.CTkRadioButton(
                 self.sidebar, text="Voice Conversion", variable=self.mode_var,
-                value="vc", command=self.on_mode_change,
-            ).grid(row=6, column=0, padx=20, pady=2, sticky="sw")
+                value="vc", command=self.on_mode_change)
+            self.mode_vc_radio.grid(row=9, column=0, padx=20, pady=2, sticky="sw")
 
-            ctk.CTkRadioButton(
+            self.mode_im_radio = ctk.CTkRadioButton(
                 self.sidebar, text="Input Listening", variable=self.mode_var,
-                value="im", command=self.on_mode_change,
-            ).grid(row=7, column=0, padx=20, pady=(2, 10), sticky="sw")
+                value="im", command=self.on_mode_change)
+            self.mode_im_radio.grid(row=10, column=0, padx=20, pady=(2, 10), sticky="sw")
 
             # Appearance mode
             ctk.CTkLabel(
                 self.sidebar, text="THEME", font=("", 11, "bold"),
                 text_color=COLORS["gray"],
-            ).grid(row=8, column=0, padx=20, pady=(5, 4), sticky="sw")
+            ).grid(row=11, column=0, padx=20, pady=(5, 4), sticky="sw")
 
             self.appearance_menu = ctk.CTkOptionMenu(
                 self.sidebar, values=["Dark", "Light", "System"],
                 command=lambda v: ctk.set_appearance_mode(v.lower()), width=170,
             )
             self.appearance_menu.set("Dark")
-            self.appearance_menu.grid(row=9, column=0, padx=20, pady=(0, 15), sticky="sew")
+            self.appearance_menu.grid(row=12, column=0, padx=20, pady=(0, 15), sticky="sew")
 
             # ══════════════════════════════════════════════════════════════
             # MAIN CONTENT AREA — Tabview
@@ -328,9 +407,9 @@ if __name__ == "__main__":
             self.ref_entry = ctk.CTkEntry(tab_vc, textvariable=self.ref_path_var)
             self.ref_entry.grid(row=row, column=0, columnspan=2, padx=(15, 5), pady=4, sticky="ew")
 
-            ctk.CTkButton(tab_vc, text="Browse", width=80,
-                          command=self.browse_audio).grid(
-                row=row, column=2, padx=(0, 15), pady=4, sticky="e")
+            self.browse_btn = ctk.CTkButton(
+                tab_vc, text="Browse", width=80, command=self.browse_audio)
+            self.browse_btn.grid(row=row, column=2, padx=(0, 15), pady=4, sticky="e")
             row += 1
 
             sep1 = ctk.CTkFrame(tab_vc, height=2, fg_color=("gray80", "gray30"))
@@ -340,24 +419,6 @@ if __name__ == "__main__":
             ctk.CTkLabel(tab_vc, text="Anonymization",
                          font=("", 14, "bold")).grid(
                 row=row, column=0, columnspan=3, padx=15, pady=(5, 8), sticky="w")
-            row += 1
-
-            ctk.CTkLabel(tab_vc, text="Preset:", width=90, anchor="w").grid(
-                row=row, column=0, padx=(15, 5), pady=4, sticky="w")
-            preset_values = ["Custom"] + list(self.presets.keys())
-            self.preset_var = ctk.StringVar(value=data.get("preset", "Custom"))
-            self.preset_menu = ctk.CTkOptionMenu(
-                tab_vc, values=preset_values, variable=self.preset_var,
-                command=self.on_preset_change)
-            self.preset_menu.grid(row=row, column=1, columnspan=2,
-                                  padx=(5, 15), pady=4, sticky="ew")
-            row += 1
-
-            self.preset_desc_label = ctk.CTkLabel(
-                tab_vc, text="", font=("", 10),
-                text_color=COLORS["gray"], anchor="w", justify="left")
-            self.preset_desc_label.grid(
-                row=row, column=0, columnspan=3, padx=15, pady=(0, 6), sticky="w")
             row += 1
 
             ctk.CTkLabel(tab_vc, text="Alpha:", width=90, anchor="w").grid(
@@ -438,12 +499,12 @@ if __name__ == "__main__":
             self.hostapi_menu.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
             self.wasapi_var = ctk.BooleanVar(value=data.get("sg_wasapi_exclusive", False))
-            ctk.CTkCheckBox(api_ctrl, text="Exclusive",
-                            variable=self.wasapi_var).grid(
-                row=0, column=1, padx=(0, 10), sticky="w")
-            ctk.CTkButton(api_ctrl, text="Reload", width=70,
-                          command=self.on_reload_devices).grid(
-                row=0, column=2, sticky="e")
+            self.wasapi_checkbox = ctk.CTkCheckBox(
+                api_ctrl, text="Exclusive", variable=self.wasapi_var)
+            self.wasapi_checkbox.grid(row=0, column=1, padx=(0, 10), sticky="w")
+            self.reload_btn = ctk.CTkButton(
+                api_ctrl, text="Reload", width=70, command=self.on_reload_devices)
+            self.reload_btn.grid(row=0, column=2, sticky="e")
             row += 1
 
             ctk.CTkLabel(tab_dev, text="Input:", width=90, anchor="w").grid(
@@ -474,12 +535,14 @@ if __name__ == "__main__":
             sr_ctrl.grid(row=row, column=1, padx=(0, 15), pady=6, sticky="ew")
 
             self.sr_type_var = ctk.StringVar(value=data.get("sr_type", "sr_model"))
-            ctk.CTkRadioButton(
+            self.sr_model_radio = ctk.CTkRadioButton(
                 sr_ctrl, text="Model (44100 Hz)", variable=self.sr_type_var,
-                value="sr_model").pack(side="left", padx=(0, 15))
-            ctk.CTkRadioButton(
+                value="sr_model")
+            self.sr_model_radio.pack(side="left", padx=(0, 15))
+            self.sr_device_radio = ctk.CTkRadioButton(
                 sr_ctrl, text="Device native", variable=self.sr_type_var,
-                value="sr_device").pack(side="left", padx=(0, 15))
+                value="sr_device")
+            self.sr_device_radio.pack(side="left", padx=(0, 15))
             row += 1
 
             # ══════════════════════════════════════════════════════════════
@@ -527,7 +590,31 @@ if __name__ == "__main__":
                 self.preset_desc_label.configure(
                     text=self.presets[saved_preset].get("description", ""))
 
+            self._attach_tooltips()
             self.root.mainloop()
+
+        def _attach_tooltips(self):
+            tips = {
+                self.start_btn: "Start real-time voice conversion using the selected reference and devices.",
+                self.stop_btn: "Stop the active stream and release audio devices.",
+                self.mode_vc_radio: "Convert incoming microphone audio to the reference voice.",
+                self.mode_im_radio: "Passthrough mode: play the input back without conversion (useful for checking the signal chain).",
+                self.appearance_menu: "Switch between Dark, Light, and System appearance.",
+                self.ref_entry: "Path to the reference audio file that defines the target voice.",
+                self.browse_btn: "Pick a reference audio file (.wav / .mp3 / .flac / .m4a / .ogg / .opus).",
+                self.preset_menu: "Quick presets for common privacy / latency tradeoffs. Moving any slider switches to Custom.",
+                self.alpha_slider: "Noise mixing coefficient applied to the speaker embedding.\n0.00 = full noise (strongest anonymization).\n1.00 = untouched reference voice.",
+                self.bf_slider: "Audio chunk size in frames. Larger blocks lower CPU load but add latency.",
+                self.df_slider: "Decoder look-ahead in frames. Higher values give better quality but add latency.",
+                self.hostapi_menu: "Audio backend. On Windows, WASAPI is recommended for the lowest latency.",
+                self.wasapi_checkbox: "Enable WASAPI exclusive mode. Gives the lowest latency but blocks other apps from the device.",
+                self.reload_btn: "Rescan available audio devices for the current backend.",
+                self.input_dev_menu: "Input device (microphone) used as the source signal.",
+                self.output_dev_menu: "Output device used for the converted voice. Pick a virtual cable to route into other apps.",
+                self.sr_model_radio: "Use the model's native sample rate (44100 Hz). Requires resampling the device streams.",
+                self.sr_device_radio: "Use the device's native sample rate. Avoids resampling on the output side.",
+            }
+            self._tooltips = [Tooltip(w, t) for w, t in tips.items()]
 
         # ── Event handlers ───────────────────────────────────────────────
         def browse_audio(self):
