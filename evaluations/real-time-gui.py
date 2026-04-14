@@ -40,10 +40,11 @@ def custom_infer(model_set,
                  new_reference_wav_name,
                  input_wav,
                  n_frame_delay=4,
+                 alpha=1.0,
                  ):
     global reference_wav_name, decode_chunk_frames
     if reference_wav_name != new_reference_wav_name or decode_chunk_frames != input_wav.size(-1) // 2048:
-        model_set.prefill_prompt(torch.from_numpy(reference_wav).to(device).unsqueeze(0), max_prompt_frames=64, delay=n_frame_delay,)
+        model_set.prefill_prompt(torch.from_numpy(reference_wav).to(device).unsqueeze(0), max_prompt_frames=64, delay=n_frame_delay, alpha=alpha)
         model_set.setup_stream_caches(
             encode_window_frames=64,
             decode_window_frames=64,
@@ -105,6 +106,7 @@ if __name__ == "__main__":
             self.sr_type: str = "sr_model"
             self.block_frame: int = 3  # 2048 wave length per frame
             self.n_frame_delay: int = 4,
+            self.alpha: float = 1.0  # anonymization strength: 0.0=max privacy, 1.0=less anonymization
             self.threhold: int = -60
             self.I_noise_reduce: bool = False
             self.O_noise_reduce: bool = False
@@ -286,6 +288,18 @@ if __name__ == "__main__":
                     sg.Frame(
                         layout=[
                             [
+                                sg.Text("Anonymization (alpha)"),
+                                sg.Slider(
+                                    range=(0.0, 1.0),
+                                    key="alpha",
+                                    resolution=0.1,
+                                    orientation="h",
+                                    default_value=data.get("alpha", 1.0),
+                                    enable_events=True,
+                                ),
+                                sg.Text("0.0=max privacy, 1.0=less anonymization", font=("Helvetica", 8)),
+                            ],
+                            [
                                 sg.Text("Block frame"),
                                 sg.Slider(
                                     range=(1, 10),
@@ -384,6 +398,7 @@ if __name__ == "__main__":
                                 ].index(True)
                             ],
                             # "threhold": values["threhold"],
+                            "alpha": values["alpha"],
                             "block_frame": values["block_frame"],
                             "n_frame_delay": values["n_frame_delay"],
                         }
@@ -400,6 +415,12 @@ if __name__ == "__main__":
                 # Parameter hot update
                 # if event == "threhold":
                 #     self.gui_config.threhold = values["threhold"]
+                elif event == "alpha":
+                    self.gui_config.alpha = values["alpha"]
+                    self.alpha = values["alpha"]
+                    # Force re-prefill on next chunk to apply new alpha
+                    global reference_wav_name
+                    reference_wav_name = ""
                 elif event == "block_frame":
                     self.gui_config.block_frame = values["block_frame"]
                 elif event == "n_frame_delay":
@@ -435,6 +456,7 @@ if __name__ == "__main__":
                 ].index(True)
             ]
             # self.gui_config.threhold = values["threhold"]
+            self.gui_config.alpha = values["alpha"]
             self.gui_config.block_frame = values["block_frame"]
             self.gui_config.n_frame_delay = values["n_frame_delay"]
             return True
@@ -474,6 +496,7 @@ if __name__ == "__main__":
             else:
                 self.resampler2 = None
             self.n_frame_delay = self.gui_config.n_frame_delay
+            self.alpha = self.gui_config.alpha
             # Warmup: run a few dummy chunks to trigger torch.compile before starting the stream
             n_warmup_chunks = int(self.gui_config.n_frame_delay) + 3
             warmup_layout = [
@@ -497,6 +520,7 @@ if __name__ == "__main__":
                     self.gui_config.reference_audio_path,
                     dummy_wav,
                     self.n_frame_delay,
+                    self.alpha,
                 )
             warmup_window["warmup_status"].update("Warmup complete!")
             warmup_window["warmup_progress"].update(n_warmup_chunks)
@@ -597,6 +621,7 @@ if __name__ == "__main__":
                     self.gui_config.reference_audio_path,
                     self.input_wav,
                     self.n_frame_delay,
+                    self.alpha,
                 )
                 if self.resampler2 is not None:
                     infer_wav = self.resampler2(infer_wav)
