@@ -149,6 +149,449 @@ if __name__ == "__main__":
                     pass
                 self._tip = None
 
+    # ── Tutorial step definitions ────────────────────────────────────────
+    TUTORIAL_CORE_STEPS = [
+        {
+            "widget": "ref_entry",
+            "title": "Select Reference Audio",
+            "description": (
+                "Click Browse to pick the voice you want to sound like. "
+                "This is the target speaker identity for voice conversion.\n\n"
+                "Supports WAV, MP3, FLAC, M4A, OGG, Opus."
+            ),
+            "tab": "Voice Conversion",
+        },
+        {
+            "widget": "preset_menu",
+            "title": "Choose a Preset",
+            "description": (
+                "Quick-switch between anonymization profiles. "
+                "Try 'Balanced' for a good starting point.\n\n"
+                "Each preset adjusts alpha, delay, and block size automatically."
+            ),
+            "tab": None,
+        },
+        {
+            "widget": "hostapi_menu",
+            "title": "Configure Audio Devices",
+            "description": (
+                "Select your microphone as Input and speakers/headphones as Output.\n\n"
+                "Use WASAPI for lowest latency on Windows."
+            ),
+            "tab": "Audio Devices",
+        },
+        {
+            "widget": "start_btn",
+            "title": "Start Conversion",
+            "description": (
+                "Click Start to begin real-time voice conversion. "
+                "First run compiles model kernels (~1-2 minutes).\n\n"
+                "Subsequent starts are instant."
+            ),
+            "tab": None,
+        },
+    ]
+
+    TUTORIAL_ADVANCED_STEPS = [
+        {
+            "widget": "alpha_slider",
+            "title": "Adjust Alpha",
+            "description": (
+                "Controls the privacy-utility trade-off.\n\n"
+                "0.0 = Maximum privacy\n"
+                "1.0 = Less anonymization (pure VC)\n\n"
+                "Recommended: 0.7 (best out-of-box)."
+            ),
+            "tab": "Voice Conversion",
+        },
+        {
+            "widget": "bf_slider",
+            "title": "Block Frame Size",
+            "description": (
+                "Audio chunk size in 2048-sample units.\n\n"
+                "Lower = less latency, more CPU load.\n"
+                "Higher = more stable, more delay.\n\n"
+                "Recommended: 1 (best out-of-box)."
+            ),
+            "tab": "Voice Conversion",
+        },
+        {
+            "widget": "df_slider",
+            "title": "Delay Frames",
+            "description": (
+                "Look-ahead frames for the decoder.\n\n"
+                "0 = Minimum latency, lower quality\n"
+                "2 = Recommended (best out-of-box)\n"
+                "8 = Maximum quality, highest latency\n\n"
+                "Each frame adds ~46ms of delay."
+            ),
+            "tab": "Voice Conversion",
+        },
+        {
+            "widget": "status_bar",
+            "title": "Status Bar",
+            "description": (
+                "Monitor your conversion in real-time.\n\n"
+                "Delay: End-to-end latency\n"
+                "Inference: Model processing time per chunk\n"
+                "SR: Current sample rate\n\n"
+                "Green dot = running, gray = stopped."
+            ),
+            "tab": None,
+        },
+    ]
+
+    # ── Tutorial Manager ─────────────────────────────────────────────────
+    class TutorialManager:
+        """Step-by-step interactive tutorial with widget highlighting."""
+
+        GLOW = "#f0c040"
+        GLOW_DIM = "#c49a20"
+        CARD_BG = "#1e1e32"
+        CARD_BORDER = "#f0c040"
+        DOT_ACTIVE = "#f0c040"
+        DOT_INACTIVE = "#555555"
+
+        def __init__(self, gui):
+            self.gui = gui
+            self.root = gui.root
+            self.current_step = 0
+            self.steps = []
+            self.card = None
+            self.is_active = False
+            self._pulse_id = None
+            self._pulse_on = True
+            self._current_widget = None
+            self._glow_frames = []
+            self._dot_labels = []
+            self._completion_toast = None
+
+        def start(self, advanced=False):
+            if self.is_active:
+                return
+            if self._completion_toast:
+                try:
+                    if self._completion_toast.winfo_exists():
+                        self._completion_toast.destroy()
+                except Exception:
+                    pass
+                self._completion_toast = None
+            if advanced:
+                self.steps = list(TUTORIAL_ADVANCED_STEPS)
+            else:
+                self.steps = list(TUTORIAL_CORE_STEPS)
+            self.current_step = 0
+            self.is_active = True
+            self.root.bind("<Escape>", self._on_escape)
+            self.root.bind("<Right>", self._on_right)
+            self.root.bind("<Left>", self._on_left)
+            self._show_step()
+
+        def _on_escape(self, event):
+            self.skip()
+
+        def _on_right(self, event):
+            self.next_step()
+
+        def _on_left(self, event):
+            if self.current_step > 0:
+                self.goto_step(self.current_step - 1)
+
+        def _get_widget(self, name):
+            return getattr(self.gui, name, None)
+
+        def _show_step(self):
+            step = self.steps[self.current_step]
+            widget = self._get_widget(step["widget"])
+            if not widget:
+                self.current_step += 1
+                if self.current_step < len(self.steps):
+                    self._show_step()
+                else:
+                    self.finish()
+                return
+
+            if step.get("tab"):
+                self.gui.tabview.set(step["tab"])
+
+            self.root.update_idletasks()
+            self._highlight(widget)
+
+            if self.card is None:
+                self._create_card(widget, step)
+            else:
+                self._update_card(widget, step)
+
+            self._start_pulse()
+
+        def _highlight(self, widget):
+            self._restore_highlight()
+            self._current_widget = widget
+            self.root.update_idletasks()
+
+            s = self.gui.sidebar._get_widget_scaling()
+            wx = (widget.winfo_rootx() - self.root.winfo_rootx()) / s
+            wy = (widget.winfo_rooty() - self.root.winfo_rooty()) / s
+            ww = widget.winfo_width() / s
+            wh = widget.winfo_height() / s
+            pad = 4
+            bw = 3
+            self._glow_frames = []
+            for x, y, w, h in [
+                (wx - pad, wy - pad, ww + 2 * pad, bw),
+                (wx - pad, wy + wh + pad - bw, ww + 2 * pad, bw),
+                (wx - pad, wy - pad, bw, wh + 2 * pad),
+                (wx + ww + pad - bw, wy - pad, bw, wh + 2 * pad),
+            ]:
+                f = ctk.CTkFrame(
+                    self.root, width=w, height=h,
+                    fg_color=self.GLOW, corner_radius=0,
+                )
+                f.place(x=x, y=y)
+                f.lift()
+                self._glow_frames.append(f)
+
+        def _restore_highlight(self):
+            for f in self._glow_frames:
+                try:
+                    f.destroy()
+                except Exception:
+                    pass
+            self._glow_frames = []
+            self._current_widget = None
+
+        def _start_pulse(self):
+            self._stop_pulse()
+            self._pulse_on = True
+            self._pulse()
+
+        def _stop_pulse(self):
+            if self._pulse_id is not None:
+                try:
+                    self.root.after_cancel(self._pulse_id)
+                except Exception:
+                    pass
+                self._pulse_id = None
+
+        def _pulse(self):
+            if not self.is_active or not self._glow_frames:
+                return
+            self._pulse_on = not self._pulse_on
+            color = self.GLOW if self._pulse_on else self.GLOW_DIM
+            for f in self._glow_frames:
+                f.configure(fg_color=color)
+            self._pulse_id = self.root.after(600, self._pulse)
+
+        def _calc_card_pos(self, widget):
+            self.root.update_idletasks()
+            s = self.gui.sidebar._get_widget_scaling()
+            wx = (widget.winfo_rootx() - self.root.winfo_rootx()) / s
+            wy = (widget.winfo_rooty() - self.root.winfo_rooty()) / s
+            ww = widget.winfo_width() / s
+            wh = widget.winfo_height() / s
+            rw = self.root.winfo_width() / s
+            rh = self.root.winfo_height() / s
+            card_w = 300
+            card_h = 220
+            pad = 15
+
+            cx = wx + ww + pad
+            if cx + card_w < rw:
+                return cx, max(10, min(wy, rh - card_h - 10))
+            cx = wx - card_w - pad
+            if cx > 0:
+                return cx, max(10, min(wy, rh - card_h - 10))
+            cx = max(10, min(wx, rw - card_w - 10))
+            cy = wy + wh + pad
+            if cy + card_h < rh:
+                return cx, cy
+            return cx, max(10, wy - card_h - pad)
+
+        def _create_card(self, widget, step):
+            cx, cy = self._calc_card_pos(widget)
+            self.card = ctk.CTkFrame(
+                self.root, width=300, corner_radius=12,
+                fg_color=self.CARD_BG,
+                border_color=self.CARD_BORDER, border_width=2,
+            )
+            self.card.place(x=cx, y=cy)
+            self.card.lift()
+
+            n = len(self.steps)
+            i = self.current_step
+
+            self._step_label = ctk.CTkLabel(
+                self.card, text=f"Step {i + 1} of {n}",
+                font=("", 11), text_color=self.DOT_ACTIVE,
+            )
+            self._step_label.pack(padx=15, pady=(12, 2), anchor="w")
+
+            self._title_label = ctk.CTkLabel(
+                self.card, text=step["title"],
+                font=("", 15, "bold"), anchor="w",
+            )
+            self._title_label.pack(padx=15, pady=(2, 6), anchor="w")
+
+            self._desc_label = ctk.CTkLabel(
+                self.card, text=step["description"],
+                font=("", 12), anchor="w", justify="left",
+                wraplength=270,
+            )
+            self._desc_label.pack(padx=15, pady=(0, 10), anchor="w")
+
+            dots_frame = ctk.CTkFrame(self.card, fg_color="transparent")
+            dots_frame.pack(pady=(0, 8))
+            self._dot_labels = []
+            for j in range(n):
+                char = "\u25cf" if j == i else "\u25cb"
+                color = self.DOT_ACTIVE if j == i else self.DOT_INACTIVE
+                dot = ctk.CTkLabel(
+                    dots_frame, text=char, font=("", 14),
+                    text_color=color, cursor="hand2",
+                )
+                dot.pack(side="left", padx=3)
+                dot.bind("<Button-1>",
+                         lambda e, idx=j: self.goto_step(idx))
+                self._dot_labels.append(dot)
+
+            btn_frame = ctk.CTkFrame(self.card, fg_color="transparent")
+            btn_frame.pack(padx=15, pady=(0, 12), fill="x")
+
+            self._skip_btn = ctk.CTkButton(
+                btn_frame, text="Skip", width=70, height=30,
+                fg_color="transparent",
+                hover_color=("gray75", "gray30"),
+                text_color=COLORS["gray"], command=self.skip,
+            )
+            self._skip_btn.pack(side="left")
+
+            is_last = (i == n - 1)
+            self._next_btn = ctk.CTkButton(
+                btn_frame,
+                text="Got it!" if is_last else "Next \u2192",
+                width=90, height=30,
+                fg_color=self.GLOW, hover_color=self.GLOW_DIM,
+                text_color="#000000", font=("", 12, "bold"),
+                command=self.next_step,
+            )
+            self._next_btn.pack(side="right")
+
+        def _update_card(self, widget, step):
+            cx, cy = self._calc_card_pos(widget)
+            self.card.place(x=cx, y=cy)
+            self.card.lift()
+            for f in self._glow_frames:
+                f.lift()
+
+            n = len(self.steps)
+            i = self.current_step
+
+            self._step_label.configure(text=f"Step {i + 1} of {n}")
+            self._title_label.configure(text=step["title"])
+            self._desc_label.configure(text=step["description"])
+
+            for j, dot in enumerate(self._dot_labels):
+                char = "\u25cf" if j == i else "\u25cb"
+                color = self.DOT_ACTIVE if j == i else self.DOT_INACTIVE
+                dot.configure(text=char, text_color=color)
+
+            is_last = (i == n - 1)
+            self._next_btn.configure(
+                text="Got it!" if is_last else "Next \u2192")
+
+        def next_step(self):
+            self._stop_pulse()
+            self._restore_highlight()
+            self.current_step += 1
+            if self.current_step >= len(self.steps):
+                self.finish()
+            else:
+                self._show_step()
+
+        def goto_step(self, idx):
+            if 0 <= idx < len(self.steps) and idx != self.current_step:
+                self._stop_pulse()
+                self._restore_highlight()
+                self.current_step = idx
+                self._show_step()
+
+        def skip(self):
+            self._stop_pulse()
+            self._restore_highlight()
+            self.finish()
+
+        def finish(self):
+            self.is_active = False
+            self._stop_pulse()
+            self._restore_highlight()
+            if self.card:
+                try:
+                    self.card.destroy()
+                except Exception:
+                    pass
+                self.card = None
+            self._dot_labels = []
+            self.root.unbind("<Escape>")
+            self.root.unbind("<Right>")
+            self.root.unbind("<Left>")
+            self.gui.mark_tutorial_completed()
+            self._show_completion()
+
+        def _show_completion(self):
+            toast = ctk.CTkFrame(
+                self.root, corner_radius=12,
+                fg_color=self.CARD_BG,
+                border_color=COLORS["green"], border_width=2,
+            )
+            toast.place(relx=0.5, rely=0.5, anchor="center")
+            toast.lift()
+            self._completion_toast = toast
+
+            ctk.CTkLabel(
+                toast, text="Tutorial Complete!",
+                font=("", 16, "bold"),
+            ).pack(padx=25, pady=(15, 5))
+
+            ctk.CTkLabel(
+                toast, text="You're ready to start using StreamVoiceAnon.",
+                font=("", 12), text_color=COLORS["gray"],
+            ).pack(padx=25, pady=(0, 10))
+
+            btn_frame = ctk.CTkFrame(toast, fg_color="transparent")
+            btn_frame.pack(padx=25, pady=(0, 15), fill="x")
+
+            ctk.CTkButton(
+                btn_frame, text="Close", width=80, height=30,
+                fg_color=COLORS["gray"],
+                hover_color=("gray75", "gray30"),
+                command=toast.destroy,
+            ).pack(side="left")
+
+            ran_advanced = any(
+                s.get("widget") == "alpha_slider" for s in self.steps
+            )
+            if not ran_advanced:
+                def start_advanced():
+                    toast.destroy()
+                    self.start(advanced=True)
+
+                ctk.CTkButton(
+                    btn_frame, text="Advanced Tutorial",
+                    width=140, height=30,
+                    fg_color=self.GLOW, hover_color=self.GLOW_DIM,
+                    text_color="#000000", font=("", 12, "bold"),
+                    command=start_advanced,
+                ).pack(side="right")
+
+            def auto_close():
+                try:
+                    if toast.winfo_exists():
+                        toast.destroy()
+                except Exception:
+                    pass
+
+            self.root.after(8000, auto_close)
+
     # ── GUI Config ───────────────────────────────────────────────────────
     class GUIConfig:
         def __init__(self):
@@ -275,6 +718,7 @@ if __name__ == "__main__":
                 "block_frame": self.gui_config.block_frame,
                 "n_frame_delay": self.gui_config.n_frame_delay,
                 "preset": self.preset_var.get(),
+                "tutorial_seen": getattr(self, "tutorial_seen", False),
             }
             os.makedirs("configs/inuse", exist_ok=True)
             with open("configs/inuse/config.json", "w") as j:
@@ -377,7 +821,15 @@ if __name__ == "__main__":
                 command=lambda v: ctk.set_appearance_mode(v.lower()), width=170,
             )
             self.appearance_menu.set("Dark")
-            self.appearance_menu.grid(row=12, column=0, padx=20, pady=(0, 15), sticky="sew")
+            self.appearance_menu.grid(row=12, column=0, padx=20, pady=(0, 8), sticky="sew")
+
+            self.tutorial_btn = ctk.CTkButton(
+                self.sidebar, text="Show Tutorial", height=28,
+                fg_color="transparent", border_width=1,
+                border_color=COLORS["gray"], text_color=COLORS["gray"],
+                hover_color="#2a2a3e",
+                command=self.run_tutorial, width=170)
+            self.tutorial_btn.grid(row=13, column=0, padx=20, pady=(0, 15), sticky="sew")
 
             # ══════════════════════════════════════════════════════════════
             # MAIN CONTENT AREA — Tabview
@@ -591,7 +1043,23 @@ if __name__ == "__main__":
                     text=self.presets[saved_preset].get("description", ""))
 
             self._attach_tooltips()
+
+            self.tutorial = TutorialManager(self)
+            self.tutorial_seen = bool(data.get("tutorial_seen", False))
+            if not self.tutorial_seen:
+                self.root.after(800, self.tutorial.start)
+
             self.root.mainloop()
+
+        def run_tutorial(self):
+            self.tutorial.start()
+
+        def mark_tutorial_completed(self):
+            self.tutorial_seen = True
+            try:
+                self.save_config()
+            except Exception:
+                pass
 
         def _attach_tooltips(self):
             tips = {
@@ -613,6 +1081,7 @@ if __name__ == "__main__":
                 self.output_dev_menu: "Output device used for the converted voice. Pick a virtual cable to route into other apps.",
                 self.sr_model_radio: "Use the model's native sample rate (44100 Hz). Requires resampling the device streams.",
                 self.sr_device_radio: "Use the device's native sample rate. Avoids resampling on the output side.",
+                self.tutorial_btn: "Replay the onboarding tutorial.",
             }
             self._tooltips = [Tooltip(w, t) for w, t in tips.items()]
 
