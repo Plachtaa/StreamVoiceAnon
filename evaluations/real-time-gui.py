@@ -1231,18 +1231,47 @@ if __name__ == "__main__":
             self.n_frame_delay = self.gui_config.n_frame_delay
             self.alpha = self.gui_config.alpha
 
-            # Warmup
+            # Warmup with progress
             n_warmup_chunks = int(self.gui_config.n_frame_delay) + 3
             self.set_status("Warming up...", COLORS["yellow"])
             self.root.update()
+
+            warmup_win = ctk.CTkToplevel(self.root)
+            warmup_win.withdraw()
+            warmup_win.title("Warming Up")
+            warmup_win.geometry("420x110")
+            warmup_win.resizable(False, False)
+            warmup_win.transient(self.root)
+            warmup_label = ctk.CTkLabel(
+                warmup_win, text="Compiling & warming up...", font=("", 12))
+            warmup_label.pack(pady=(20, 8))
+            warmup_bar = ctk.CTkProgressBar(warmup_win, width=370)
+            warmup_bar.pack(pady=(0, 5))
+            warmup_bar.set(0)
+            ctk.CTkLabel(
+                warmup_win, text="First run may take 1-2 minutes",
+                font=("", 10), text_color=COLORS["gray"]).pack()
+            warmup_win.update_idletasks()
+            warmup_win.deiconify()
+            warmup_win.lift()
+            warmup_win.attributes("-topmost", True)
+            warmup_win.grab_set()
+            warmup_win.update()
+
             dummy_wav = torch.zeros(
                 self.block_frame, device=self.config.device, dtype=torch.float32)
-            for _ in range(n_warmup_chunks):
+            for i in range(n_warmup_chunks):
+                warmup_label.configure(
+                    text=f"Compiling kernel {i + 1}/{n_warmup_chunks}...")
+                warmup_bar.set((i + 1) / n_warmup_chunks)
+                warmup_win.update()
                 custom_infer(
                     self.model_set, self.reference_wav,
                     self.gui_config.reference_audio_path, dummy_wav,
                     self.n_frame_delay, self.alpha,
                 )
+
+            warmup_win.destroy()
 
             global reference_wav_name
             reference_wav_name = ""
@@ -1394,4 +1423,39 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
 
-    gui = GUI(args)
+    # ── Loading screen ───────────────────────────────────────────────────
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+
+    load_win = ctk.CTk()
+    load_win.title("Stream-Voice-Anon")
+    load_win.geometry("420x140")
+    load_win.resizable(False, False)
+
+    ctk.CTkLabel(load_win, text="Stream-Voice-Anon",
+                 font=("", 18, "bold")).pack(pady=(20, 5))
+    load_label = ctk.CTkLabel(load_win, text="Loading models...",
+                              font=("", 12), text_color=COLORS["gray"])
+    load_label.pack(pady=(0, 8))
+    load_bar = ctk.CTkProgressBar(load_win, width=370)
+    load_bar.pack(pady=(0, 10))
+    load_bar.set(0)
+    load_win.update()
+
+    load_label.configure(text="Step 1/2: Loading main model...")
+    load_bar.set(0.1)
+    load_win.update()
+    model_set = load_models(args)
+
+    load_label.configure(text="Step 2/2: Loading VAD model...")
+    load_bar.set(0.6)
+    load_win.update()
+    from funasr import AutoModel
+    vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4")
+
+    load_label.configure(text="Ready!")
+    load_bar.set(1.0)
+    load_win.update()
+    load_win.destroy()
+
+    gui = GUI(args, model_set=model_set, vad_model=vad_model)
