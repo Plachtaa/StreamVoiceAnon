@@ -68,7 +68,7 @@ class InferenceWrapper:
         speechtokenizer_cfg = DictConfig(yaml.safe_load(open(self.config['speech_tokenizer']['config_path'])))
         self.speech_tokenizer = hydra.utils.instantiate(speechtokenizer_cfg).to(self.device)
         speech_tokenizer_sd = torch.load(
-            self.config["speech_tokenizer"]["checkpoint_path"], map_location="cpu"
+            self.config["speech_tokenizer"]["checkpoint_path"], map_location="cpu", weights_only=True
         )
         if 'net' in speech_tokenizer_sd:
             speech_tokenizer_sd = speech_tokenizer_sd['net']
@@ -88,7 +88,7 @@ class InferenceWrapper:
         firefly_cfg = DictConfig(yaml.safe_load(open(self.config['firefly']['config_path'])))
         self.firefly = hydra.utils.instantiate(firefly_cfg).to(self.device)
         self.firefly.load_state_dict(
-            torch.load(self.config["firefly"]["checkpoint_path"], map_location="cpu"),
+            torch.load(self.config["firefly"]["checkpoint_path"], map_location="cpu", weights_only=True),
             strict=False,
         )
         self.firefly.remove_parametrizations()
@@ -100,7 +100,7 @@ class InferenceWrapper:
         ).to(self.device).eval()
         self.style_encoder.load_state_dict(
             torch.load(
-                self.config["style_encoder"]["checkpoint_path"], map_location="cpu"
+                self.config["style_encoder"]["checkpoint_path"], map_location="cpu", weights_only=True
             ),
             strict=False,
         )
@@ -113,7 +113,7 @@ class InferenceWrapper:
         ).to(self.device)
         self.timbre_encoder.load_state_dict(
             torch.load(
-                self.config["timbre_encoder"]["checkpoint_path"], map_location="cpu"
+                self.config["timbre_encoder"]["checkpoint_path"], map_location="cpu", weights_only=True
             ),
             strict=False,
         )
