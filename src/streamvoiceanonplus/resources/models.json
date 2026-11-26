@@ -1,0 +1,102 @@
+{
+  "default": "frame",
+  "default_selector": "frame-distill",
+  "models": [
+    {
+      "id": "base",
+      "selector": "base",
+      "candidate_id": "base-original-a09-full-dev",
+      "name": "StreamVoiceAnon",
+      "default": false,
+      "epoch": null,
+      "checkpoint_sha256": "df703a1a710c807ad0651dd1bbe45556bf5f3a47f1a79929ec3e6e8fecc56583",
+      "checkpoint_file": "base.pth",
+      "backend": "base",
+      "metrics": {
+        "WER": 4.554023001011869,
+        "UAR": 39.841,
+        "EER_L": 46.9065,
+        "EER_f": 45.4875,
+        "EER_m": 48.3255,
+        "recalls": {
+          "neu": 33.2302759963674,
+          "ang": 37.048314819035824,
+          "sad": 8.226339335392115,
+          "hap": 80.85899408396617
+        }
+      },
+      "metric_scope": "dev_test_mean",
+      "inference_artifact_status": "upstream_checkpoint",
+      "weights_license": "See the model repository for weight terms",
+      "EER_S": null,
+      "limitations": [
+        "Checkpoints were selected using development data. Reported scores average the full development and test splits with one inference seed per utterance."
+      ],
+      "weights_url": "https://huggingface.co/Plachta/StreamVoiceAnon"
+    },
+    {
+      "id": "frame",
+      "selector": "frame-distill",
+      "candidate_id": "highlr15-frame-u0350",
+      "name": "StreamVoiceAnon+ frame-distill",
+      "default": true,
+      "epoch": 7,
+      "checkpoint_sha256": "63b610aabea3cb7c4b48704399d49b84aa2a2728e6cba5247e49839245b775e4",
+      "checkpoint_file": "frame.pth",
+      "backend": "plus",
+      "metrics": {
+        "WER": 6.0031422851826015,
+        "UAR": 51.2236,
+        "EER_L": 47.26125,
+        "EER_f": 45.9505,
+        "EER_m": 48.572,
+        "recalls": {
+          "neu": 43.90804251230205,
+          "ang": 50.05125031990995,
+          "sad": 41.36570411103664,
+          "hap": 69.56953730534579
+        }
+      },
+      "metric_scope": "dev_test_mean",
+      "inference_artifact_status": "inference_checkpoint_available",
+      "weights_license": "See the model repository for weight terms",
+      "EER_S": null,
+      "limitations": [
+        "Checkpoints were selected using development data. Reported scores average the full development and test splits with one inference seed per utterance."
+      ],
+      "weights_url": "https://huggingface.co/paniquex/StreamVoiceAnonPlus"
+    },
+    {
+      "id": "pool",
+      "selector": "pool-distill",
+      "candidate_id": "histlr-pool-u0700",
+      "name": "StreamVoiceAnon+ pool-distill",
+      "default": false,
+      "epoch": 14,
+      "checkpoint_sha256": "cb337c1b418ad93ee7fe16ed95f91ed635edf39c6d539483b2946c94854b5222",
+      "checkpoint_file": "pool.pth",
+      "backend": "plus",
+      "metrics": {
+        "WER": 5.474406147213136,
+        "UAR": 48.3183,
+        "EER_L": 46.10275,
+        "EER_f": 45.0715,
+        "EER_m": 47.134,
+        "recalls": {
+          "neu": 40.42880044543719,
+          "ang": 47.90369849908393,
+          "sad": 29.495461893909045,
+          "hap": 75.44503184537047
+        }
+      },
+      "metric_scope": "dev_test_mean",
+      "inference_artifact_status": "inference_checkpoint_available",
+      "weights_license": "See the model repository for weight terms",
+      "EER_S": null,
+      "limitations": [
+        "Checkpoints were selected using development data. Reported scores average the full development and test splits with one inference seed per utterance."
+      ],
+      "weights_url": "https://huggingface.co/paniquex/StreamVoiceAnonPlus"
+    }
+  ]
+}

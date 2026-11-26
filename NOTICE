@@ -1,0 +1,17 @@
+StreamVoiceAnon and StreamVoiceAnon+
+
+Original StreamVoiceAnon / StreamVoiceAnonPlus source
+Source commits are dd637252146ce8e3c0882f15672a14c393199931 (StreamVoiceAnon)
+and 64be364e44ce0119e44d2a750ce9049cb3574a89 (StreamVoiceAnon+).
+
+The original StreamVoiceAnon training source is from revision
+e015100d6439ff9993aed5de3512f5240cc9ea84 and follows the original Apache-2.0
+license in training/streamvoiceanon/LICENSE.
+
+CAMPPlus and Spark/BiCodec source carries Apache-2.0 notices. See
+LICENSES/Apache-2.0.txt and the original source headers for attribution.
+Neural codec, Firefly, and FSQ attribution is retained in the source headers.
+
+The VoicePrivacy evaluation adapter uses an external GPL-3.0-or-later
+evaluator. The evaluator, model weights, and evaluation datasets are
+distributed separately.

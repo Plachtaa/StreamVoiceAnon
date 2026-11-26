@@ -1,0 +1,31 @@
+{
+  "repository": "Plachta/StreamVoiceAnon",
+  "revision": "3684dff8e8706b306e6d1f0217a1f79968bbb966",
+  "assets": [
+    {
+      "filename": "asr_s2s_bsq_8192_causal_down_whisper.pth",
+      "sha256": "dd02fc319d66216159693f6523ebbc4262afd43f41630de70599cf77f99b159e",
+      "bytes": 618561748
+    },
+    {
+      "filename": "campplus_cn_common.bin",
+      "sha256": "3388cf5fd3493c9ac9c69851d8e7a8badcfb4f3dc631020c4961371646d5ada8",
+      "bytes": 28036335
+    },
+    {
+      "filename": "dual_ar_delay_0_8.pth",
+      "sha256": "df703a1a710c807ad0651dd1bbe45556bf5f3a47f1a79929ec3e6e8fecc56583",
+      "bytes": 598136107
+    },
+    {
+      "filename": "firefly-gan-vq-fsq-8x1024-21hz-generator.pth",
+      "sha256": "01b81dbf753224a156c3fe139b88bf0b9a0f54b11bee864f95e66511c3ccd754",
+      "bytes": 188518579
+    },
+    {
+      "filename": "spark_speaker_encoder.pth",
+      "sha256": "84adb871ada3c41ac54b8c4897b88c2ed80962937e283437f9a392980ffd3483",
+      "bytes": 56378895
+    }
+  ]
+}

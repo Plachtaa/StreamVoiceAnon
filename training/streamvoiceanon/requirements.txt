@@ -1,0 +1,4 @@
+-r ../../environment/requirements-inference.txt
+accelerate==1.6.0
+datasets==3.5.0
+tensorboard==2.18.0

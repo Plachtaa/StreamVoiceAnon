@@ -1,220 +1,211 @@
-<h1 align="center">Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models</h1>
+<h1 align="center">StreamVoiceAnon</h1>
+
+<p align="center">Streaming speaker anonymization with neural audio codecs and autoregressive voice conversion</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/ICASSP-2026-purple?style=plastic" alt="ICASSP 2026" height="32">
-  <a href="https://paniquex.github.io/Stream-Voice-Anon/"><img src="https://img.shields.io/badge/Demo-GitHub%20Pages-blue?style=plastic" alt="Demo" height="32"></a>
-  <a href="https://arxiv.org/abs/2601.13948"><img src="https://img.shields.io/badge/arXiv-2601.13948-b31b1b.svg?style=plastic" alt="Paper" height="32"></a>
-  <a href="https://huggingface.co/Plachta/StreamVoiceAnon"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-yellow?style=plastic" alt="Models" height="32"></a>
-  
+  <a href="https://paniquex.github.io/Stream-Voice-Anon/"><img src="https://img.shields.io/badge/StreamVoiceAnon-Demo-blue?style=plastic" alt="StreamVoiceAnon demo" height="32"></a>
+  <a href="https://arxiv.org/abs/2601.13948"><img src="https://img.shields.io/badge/arXiv-2601.13948-b31b1b.svg?style=plastic" alt="StreamVoiceAnon paper" height="32"></a>
+  <a href="https://huggingface.co/Plachta/StreamVoiceAnon"><img src="https://img.shields.io/badge/Hugging%20Face-StreamVoiceAnon-yellow?style=plastic" alt="StreamVoiceAnon weights" height="32"></a>
 </p>
-
-
-
-
-
-<div align="center">
-  <b>Nikita Kuzmin<sup>1,2*</sup>, Songting Liu<sup>1*</sup>, Kong Aik Lee<sup>3</sup>, Eng Siong Chng<sup>1</sup></b>
-  <br>
-  <sup>1</sup><a href="https://www.ntu.edu.sg/">Nanyang Technological University</a>, Singapore
-  <br>
-  <sup>2</sup><a href="https://www.a-star.edu.sg/i2r">Institute for Infocomm Research, A*STAR</a>, Singapore
-  <br>
-  <sup>3</sup><a href="https://www.polyu.edu.hk/">The Hong Kong Polytechnic University</a>, Hong Kong
-  <br>
-  <i>* Equal contribution</i>
-  <h4>ICASSP 2026</h4>
-</div>
-
-> [!IMPORTANT]
-> **📣 Our extension, StreamVoiceAnon+, has been accepted to Interspeech 2026!**
-> Expand the section just below for the paper, authors, and approach.
-
-<details>
-<summary><b>StreamVoiceAnon+: paper, authors &amp; details (click to expand)</b></summary>
-
-<br>
-
-<h3 align="center">StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation</h3>
 
 <p align="center">
-  <a href="https://paniquex.github.io/streamvoiceanon-plus/"><img src="https://img.shields.io/badge/INTERSPEECH-2026-2ea44f?style=plastic" alt="Interspeech 2026" height="32"></a>
-  <a href="https://paniquex.github.io/streamvoiceanon-plus/"><img src="https://img.shields.io/badge/Demo-GitHub%20Pages-blue?style=plastic" alt="Demo" height="32"></a>
-  <a href="https://arxiv.org/abs/2603.06079"><img src="https://img.shields.io/badge/arXiv-2603.06079-b31b1b.svg?style=plastic" alt="Paper" height="32"></a>
-  <img src="https://img.shields.io/badge/%F0%9F%A4%97%20Models-coming%20soon-lightgrey?style=plastic" alt="Models coming soon" height="32">
+  <img src="https://img.shields.io/badge/INTERSPEECH-2026-2ea44f?style=plastic" alt="Interspeech 2026" height="32">
+  <a href="https://arxiv.org/abs/2603.06079"><img src="https://img.shields.io/badge/arXiv-2603.06079-b31b1b.svg?style=plastic" alt="StreamVoiceAnon+ paper" height="32"></a>
+  <a href="https://huggingface.co/paniquex/StreamVoiceAnonPlus"><img src="https://img.shields.io/badge/Hugging%20Face-StreamVoiceAnon%2B-yellow?style=plastic" alt="StreamVoiceAnon+ weights" height="32"></a>
 </p>
 
-<div align="center">
-  <b>Nikita Kuzmin<sup>1,2</sup>, Kong Aik Lee<sup>3</sup>, Eng Siong Chng<sup>1</sup></b>
-  <br>
-  <sup>1</sup><a href="https://www.ntu.edu.sg/">Nanyang Technological University</a>, Singapore
-  <br>
-  <sup>2</sup><a href="https://www.a-star.edu.sg/i2r">Institute for Infocomm Research, A*STAR</a>, Singapore
-  <br>
-  <sup>3</sup><a href="https://www.polyu.edu.hk/">The Hong Kong Polytechnic University</a>, Hong Kong
-  <h4>Interspeech 2026</h4>
-</div>
+## Contents
 
-StreamVoiceAnon+ extends StreamVoiceAnon to keep the speaker's *emotion* through anonymization, not just the spoken content. You can find more details in our [paper](https://arxiv.org/abs/2603.06079).
+- [Models](#models)
+- [Architecture](#architecture)
+- [Installation](#installation) · [Linux](#linux) · [Windows with CUDA](#windows-with-cuda)
+- [Download pretrained models](#download-pretrained-models)
+- [Inference](#inference) · [Python API](#python)
+- [StreamVoiceAnon training](#streamvoiceanon-training)
+- [Results on development and test](#results-on-development-and-test)
+- [Citation](#citation) · [License and acknowledgements](#license-and-acknowledgements)
 
-<p align="center">
-  <img src="https://paniquex.github.io/streamvoiceanon-plus/figures/sva_sft_hid_stat_acoust.png" alt="StreamVoiceAnon+ training/inference pipeline" width="100%">
-  <br>
-  <em>Training / inference pipeline for StreamVoiceAnon+.</em>
-</p>
+## Models
 
-</details>
+StreamVoiceAnon uses a reference utterance to condition streaming voice conversion for speaker anonymization. StreamVoiceAnon+ adds two checkpoints fine-tuned to preserve emotion in the source utterance.
+
+| Model | CLI option | Code release | Weights |
+| --- | --- | --- | --- |
+| StreamVoiceAnon | `--model base` | [v0.1.0](https://github.com/Plachtaa/StreamVoiceAnon/releases/tag/v0.1.0) | [Baseline checkpoint](https://huggingface.co/Plachta/StreamVoiceAnon/blob/3684dff8e8706b306e6d1f0217a1f79968bbb966/dual_ar_delay_0_8.pth) |
+| StreamVoiceAnon+ frame-distill | `--model frame-distill` | [v0.2.0](https://github.com/Plachtaa/StreamVoiceAnon/releases/tag/v0.2.0) | [frame-distill checkpoint](https://huggingface.co/paniquex/StreamVoiceAnonPlus/blob/v0.2.0-hub/frame.pth) |
+| StreamVoiceAnon+ pool-distill | `--model pool-distill` | [v0.2.0](https://github.com/Plachtaa/StreamVoiceAnon/releases/tag/v0.2.0) | [pool-distill checkpoint](https://huggingface.co/paniquex/StreamVoiceAnonPlus/blob/v0.2.0-hub/pool.pth) |
+
+`frame-distill` is the default. The [original StreamVoiceAnon release](https://github.com/Plachtaa/StreamVoiceAnon/releases/tag/v0.1.0) includes the GUI and examples.
 
 ## Architecture
-This repository contains the implementation of StreamVoiceAnon, a real-time voice anonymization / voice conversion model.
 
-<table align="center">
-  <tr>
-    <td align="center">
-      <img src="figures/streamvoiceanon_training_cropped.png" alt="Training Architecture" width="100%">
-      <br>
-      <em>(a) Training</em>
-    </td>
-    <td align="center">
-      <img src="figures/streamvoiceanon_inference_cropped.png" alt="Inference Architecture" width="100%">
-      <br>
-      <em>(b) Inference</em>
-    </td>
-  </tr>
-</table>
+### StreamVoiceAnon
+
+A causal content encoder supplies content tokens to a two-stage autoregressive voice conversion (ARVC) model. Slow AR runs at the frame rate, and Fast AR predicts the acoustic codebook tokens within each frame. The acoustic decoder turns those tokens into a waveform.
+
+<p align="center">
+  <a href="figures/streamvoiceanon_training_cropped.png"><img src="figures/streamvoiceanon_training_cropped.png" alt="StreamVoiceAnon training architecture" width="48%"></a>
+  <a href="figures/streamvoiceanon_inference_cropped.png"><img src="figures/streamvoiceanon_inference_cropped.png" alt="StreamVoiceAnon inference architecture" width="48%"></a>
+  <br>
+  <em>(a) Training · (b) Streaming inference</em>
+</p>
+
+### StreamVoiceAnon+ training and inference
+
+<p align="center">
+  <a href="figures/streamvoiceanonplus_architecture.png"><img src="figures/streamvoiceanonplus_architecture.png" alt="StreamVoiceAnon+ frame-distill training and streaming inference, including separate prompt and source tokens and the training-only emotion distillation path" width="100%"></a>
+</p>
+
+In both Plus variants, learned `[SEP]` tokens separate the reference prompt from the source utterance in the semantic and acoustic token streams. During fine-tuning, `frame-distill` uses frame-level emotion distillation on the Slow AR acoustic-token hidden states. `pool-distill` uses statistical pooling for utterance-level emotion classification. The auxiliary emotion heads are used during fine-tuning. Both variants use the same streaming decoder at inference. [StreamVoiceAnon+ paper, Figure 2](https://arxiv.org/html/2603.06079v1#S1.F2)
 
 ## Installation
+
+### Linux
+
+Run these commands from the repository root on Linux with Python 3.10 and a CUDA-capable GPU. This installs the CUDA 12.4 build of PyTorch.
+
+On Ubuntu 22.04, install the system packages first. The compiler and Python development headers are required by the `--compile` examples.
+
 ```bash
-git clone https://github.com/Plachtaa/StreamVoiceAnon.git
-cd StreamVoiceAnon
-pip install -r requirements.txt
+sudo apt-get update
+sudo apt-get install -y python3.10-venv python3.10-dev build-essential ffmpeg libsndfile1 libgomp1
 ```
 
-If running on Windows OS, please install the following:
 ```bash
-pip install triton-windows==3.2.0.post13
-```
-Note that this is **compulsory** to run inference with RTF < 1.0
-
-Full MacOS support is still under construction.
-
-## Download Pretrained Models
-```bash
-hf download Plachta/StreamVoiceAnon --local-dir pretrained_checkpoints/
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124
+python -m pip install -r environment/requirements-inference.txt
+python -m pip install --no-deps .
 ```
 
-## Training
-Below is an example command to launch single node multi-GPU training with streaming Emilia dataset from HuggingFace:
-```bash
-accelerate launch trainers/arvc_trainer.py --config_path configs/config_firefly_arvcasr_8192_delay0_8.yaml --mixed-precision bf16
+The [container recipe](environment/Dockerfile) uses the same dependencies.
+
+### Windows with CUDA
+
+Use 64-bit Python 3.10, an NVIDIA Ampere or Ada GPU, and a current NVIDIA driver. Install the x64 Visual C++ Redistributable. The Windows setup uses PyTorch 2.6 with the same Windows Triton pin used by the original StreamVoiceAnon release. [Microsoft redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) · [Triton compatibility](https://github.com/triton-lang/triton-windows/blob/readme/README.md#3-pytorch)
+
+Run these commands in PowerShell from the repository root.
+
+```powershell
+py -3.10 -m venv .venv
+$python = ".\.venv\Scripts\python.exe"
+$hf = ".\.venv\Scripts\hf.exe"
+& $python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+& $python -m pip install -r environment/requirements-inference.txt triton-windows==3.2.0.post13
+& $python -m pip install --no-deps .
+& $python -c "import torch, triton; assert torch.cuda.is_available(); print(torch.cuda.get_device_name(), torch.version.cuda, triton.__version__)"
 ```
 
-Above command uses default content encoder and trains only the VC model. To train your own content encoder, 
-run the following command instead:
-```bash
-accelerate launch trainers/asr_trainer.py --config_path configs/config_asr_bsq_8192.yaml --mixed-precision bf16
-```
-To customize model config or training datasets, we encourage users to read config files or training code.
+Download the baseline checkpoint, shared components, and both Plus checkpoints.
 
+```powershell
+& $hf download Plachta/StreamVoiceAnon --revision 3684dff8e8706b306e6d1f0217a1f79968bbb966 --local-dir pretrained_checkpoints
+& $hf download paniquex/StreamVoiceAnonPlus config.json frame.pth frame.receipt.json pool.pth pool.receipt.json --revision v0.2.0-hub --local-dir pretrained_checkpoints
+```
+
+Run optimized file inference with `--compile`. The cache setting works around a PyTorch 2.6 issue on Windows. The first run compiles CUDA kernels and can take a few minutes.
+
+```powershell
+$env:TORCHINDUCTOR_BUNDLE_TRITON_INTO_FX_GRAPH_CACHE = "0"
+& $python evaluations/infer_arvc.py --model frame-distill --checkpoint_path pretrained_checkpoints/frame.pth --src_path source.wav --ref_path reference.wav --out_dir audio_outputs --delay 2 --compile --simulate_streaming --decode_chunk_frames 3
+```
+
+Use `--model pool-distill --checkpoint_path pretrained_checkpoints/pool.pth` for pool-distill or `--model base --checkpoint_path pretrained_checkpoints/dual_ar_delay_0_8.pth` for StreamVoiceAnon. Omit `--compile` to run without compilation. GPU release checks were run on Linux. Native Windows inference and throughput still need a Windows GPU test. On WSL 2, check `nvidia-smi` inside Ubuntu 22.04 and follow the Linux setup. [CUDA on WSL 2](https://learn.microsoft.com/en-us/windows/ai/directml/gpu-cuda-in-wsl)
+
+## Download pretrained models
+
+Download the StreamVoiceAnon checkpoint and the four components shared by all three models. [StreamVoiceAnon weights](https://huggingface.co/Plachta/StreamVoiceAnon)
+
+```bash
+hf download Plachta/StreamVoiceAnon \
+    --revision 3684dff8e8706b306e6d1f0217a1f79968bbb966 \
+    --local-dir pretrained_checkpoints
+```
+
+For `frame-distill`, download the release configuration, checkpoint, and checksum receipt into the same directory. [StreamVoiceAnon+ weights](https://huggingface.co/paniquex/StreamVoiceAnonPlus)
+
+```bash
+hf download paniquex/StreamVoiceAnonPlus config.json frame.pth frame.receipt.json \
+    --revision v0.2.0-hub \
+    --local-dir pretrained_checkpoints
+```
+
+For `pool-distill`, use the same `config.json` and substitute `pool.pth` and `pool.receipt.json`. Keep each checkpoint and its receipt together. See the [shared component hashes](src/streamvoiceanonplus/resources/components.json) and [Plus checkpoint hashes](https://huggingface.co/paniquex/StreamVoiceAnonPlus/blob/v0.2.0-hub/inference-manifest.json).
 
 ## Inference
-Offline inference 
-```bash
-python evaluations/infer_arvc.py \
-    --src_path <path_to_audio> \
-    --ref_path <path_to_audio> \
-    --out_dir <path_to_output_directory> \
-    --delay 2 \  # Specify delay in number of frames (must have)
-    --compile
-```
-Simulated online inference
-```bash
-python evaluations/infer_arvc.py \
-    --src_path <path_to_audio> \
-    --ref_path <path_to_audio> \
-    --out_dir <path_to_output_directory> \
-    --delay 2 \  # Specify delay in number of frames (must have)
-    --compile \
-    --simulate_streaming \
-    --decode_chunk_frames 1 # how many frames for encoder & vocoder to process each time
-```
-This simulates a chunk-by-chunk online inference with specified chunk size. `src_path` (source audio) has no length limit here. `ref_path` (reference audio) will be truncated to some maximum length (if longer than that limit)
 
-### Anonymization with noise mixing
-Use the `--alpha` flag to control the noise mixing ratio on speaker embeddings. A value of `1.0` means no noise (pure voice conversion), while lower values blend more noise into the speaker representation for stronger anonymization.
+Use `source.wav` for the speech to anonymize and `reference.wav` for the target speaker prompt.
+
+### StreamVoiceAnon
+
 ```bash
 python evaluations/infer_arvc.py \
-    --src_path <path_to_source_audio> \
-    --ref_path <path_to_reference_audio> \
-    --out_dir <path_to_output_directory> \
-    --delay 2 \
-    --alpha 0.8 \
-    --compile
+    --model base --checkpoint_path pretrained_checkpoints/dual_ar_delay_0_8.pth \
+    --src_path source.wav --ref_path reference.wav --out_dir audio_outputs \
+    --delay 2 --compile
 ```
 
-### Multiple reference audios
-Provide multiple `--ref_path` entries to derive a combined speaker representation from several reference utterances. Using multiple references further improves privacy protection, making it harder to trace back to real speaker and better distorting the source's original speaker characteristics. You can optionally crop each reference to a specific duration (in seconds) with `--ref_crop_lengths`.
+### StreamVoiceAnon+ frame-distill
+
 ```bash
 python evaluations/infer_arvc.py \
-    --src_path <path_to_source_audio> \
-    --ref_path <path_to_ref1> <path_to_ref2> <path_to_ref3> \
-    --ref_crop_lengths 5.0 3.0 4.0 \
-    --out_dir <path_to_output_directory> \
-    --delay 2 \
-    --compile
+    --model frame-distill --checkpoint_path pretrained_checkpoints/frame.pth \
+    --src_path source.wav --ref_path reference.wav --out_dir audio_outputs \
+    --delay 2 --compile --simulate_streaming --decode_chunk_frames 3
 ```
 
-### Combined: multiple references with noise anonymization
-```bash
-python evaluations/infer_arvc.py \
-    --src_path <path_to_source_audio> \
-    --ref_path <path_to_ref1> <path_to_ref2> \
-    --ref_crop_lengths 5.0 5.0 \
-    --out_dir <path_to_output_directory> \
-    --delay 2 \
-    --alpha 0.7 \
-    --compile
+Select `pool-distill` with `--model pool-distill --checkpoint_path pretrained_checkpoints/pool.pth`. With `--simulate_streaming`, the script processes the file in chunks. Omit the flag for offline inference. For these examples, the script writes `audio_outputs/source_reference.wav` at 44.1 kHz.
+
+The evaluation used a two-frame decoding delay and three-frame chunks. Both model families use speaker embedding mixing at inference. `--alpha 0.9` sets the weight of each reference speaker embedding in its mixture with Gaussian noise. The code calls the two embeddings style and timbre.
+
+StreamVoiceAnon accepts multiple reference utterances and optional crop lengths via `--ref_crop_lengths`. Each Plus variant takes one reference utterance. Use `--config_path` to reuse component paths from a StreamVoiceAnon YAML file, or `--components` to select a shared checkpoint directory. Run `sva infer --help` for seeded inference with 16 kHz output.
+
+### Python
+
+```python
+from streamvoiceanonplus import InferenceWrapper
+
+with InferenceWrapper(
+    checkpoint_path="pretrained_checkpoints/frame.pth",
+    model="frame-distill",
+    compile_ar=True,
+) as model:
+    audio = model.stream_infer("source.wav", "reference.wav", "audio_outputs")
 ```
 
-Real-time inference
-```bash
-python evaluations/real-time-gui.py
-```
-This UI uses the same behavior as simulated online inference. It uses `--compile` by default, so please ensure you have installed triton (as previously stated) before using it.
+The same class is available from `evaluations.infer_arvc` for code using the original script path.
+
+## StreamVoiceAnon training
+
+The source release includes the original StreamVoiceAnon trainers for voice conversion and the content encoder, along with their configurations and data loader. The Plus release provides inference weights. [Training guide](training/streamvoiceanon/README.md)
+
+## Results on development and test
+
+| Model | WER ↓ | UAR ↑ | EER-L ↑ |
+| --- | ---: | ---: | ---: |
+| StreamVoiceAnon | 4.55 | 39.84 | 46.91 |
+| StreamVoiceAnon+ frame-distill | 6.00 | 51.22 | 47.26 |
+| StreamVoiceAnon+ pool-distill | 5.47 | 48.32 | 46.10 |
+
+The table reports word error rate (WER) on LibriSpeech, unweighted average recall (UAR) for speech emotion recognition on IEMOCAP, and equal error rate against a lazy-informed attacker (EER-L). The attacker uses an automatic speaker verification model trained on original speech and scores anonymized enrollment and trials.
+
+All scores are percentages. WER and UAR give the full development and test splits equal weight. EER-L is the mean of the four split-by-gender scores. Checkpoint selection used development data.
+
+The release scores differ slightly from those reported in the [StreamVoiceAnon+ paper](https://arxiv.org/abs/2603.06079), reflecting differences in the training environment and minor changes to the inference settings. We reran fine-tuning from pretrained StreamVoiceAnon on a different compute cluster with its own GPU configuration and training runtime.
+
+The bundled VoicePrivacy adapter covers the development split. It uses the [pinned external evaluator](https://github.com/Plachtaa/StreamVoiceAnon/tree/dd637252146ce8e3c0882f15672a14c393199931/anon) and its own dependencies. Run `python -m streamvoiceanonplus.vpc_adapter --help` for checkout verification and configuration.
 
 ## Citation
-If you find our repository valuable for your work, please consider giving a star to this repo and citing the relevant papers:
 
-**StreamVoiceAnon (ICASSP 2026)**
-```
-@misc{kuzmin2026streamvoiceanonenhancingutilityrealtime,
-      title={Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models}, 
-      author={Nikita Kuzmin and Songting Liu and Kong Aik Lee and Eng Siong Chng},
-      year={2026},
-      eprint={2601.13948},
-      archivePrefix={arXiv},
-      primaryClass={eess.AS},
-      url={https://arxiv.org/abs/2601.13948}, 
-}
-```
+- [Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models](https://arxiv.org/abs/2601.13948) (ICASSP 2026)
+- [StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation](https://arxiv.org/abs/2603.06079) (Interspeech 2026)
 
-**StreamVoiceAnon+ (Interspeech 2026)**
-```
-@misc{kuzmin2026streamvoiceanonemotionpreservingstreamingspeaker,
-      title={StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation}, 
-      author={Nikita Kuzmin and Kong Aik Lee and Eng Siong Chng},
-      year={2026},
-      eprint={2603.06079},
-      archivePrefix={arXiv},
-      primaryClass={eess.AS},
-      url={https://arxiv.org/abs/2603.06079}, 
-}
-```
-## Acknowledgements
- - Emotion representations: https://huggingface.co/emotion2vec/emotion2vec_plus_large
- - Computation resources: https://www.nscc.sg/
- - Real-time GUI: https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI
- - Speaker representations (1 of 2) https://huggingface.co/funasr/campplus
- - Speaker representations (2 of 2) https://github.com/SparkAudio/Spark-TTS
- - Speech acoustic codec https://huggingface.co/fishaudio/fish-speech-1.5
- - Idea: https://arxiv.org/html/2401.11053v1
- - VoicePrivacyChallenge: https://www.voiceprivacychallenge.org/
+[BibTeX](CITATION.bib)
+
+## License and acknowledgements
+
+The inference code is [MIT-licensed](LICENSE). The original StreamVoiceAnon training code uses [Apache 2.0](training/streamvoiceanon/LICENSE). See [NOTICE](NOTICE) for third-party code. Model weights and datasets have separate terms.
+
+The models use [CAMPPlus](https://huggingface.co/funasr/campplus), [Spark-TTS](https://github.com/SparkAudio/Spark-TTS), and [Fish-Speech](https://huggingface.co/fishaudio/fish-speech-1.5). Evaluation uses the [VoicePrivacy 2024](https://arxiv.org/abs/2404.02677) datasets and metrics.
