@@ -520,11 +520,12 @@ class InferenceWrapper:
 
             if current_pos // 2 >= self.max_seq_frames:
                 # refill prompt with ref codes and buffer
+                end = -self.delay if self.delay else None
                 extended_ref_audio_codes = torch.cat(
                     [self.ref_audio_codes, self.pred_codes[..., -self.buffer_frames:]], dim=-1
                 )
                 extended_ref_content_codes = torch.cat(
-                    [self.ref_content_codes, self.src_content_codes[..., -self.buffer_frames - self.delay:-self.delay]],
+                    [self.ref_content_codes, self.src_content_codes[..., -self.buffer_frames - self.delay:end]],
                     dim=-1
                 )
                 self.model.prefill_prompt(
@@ -533,7 +534,8 @@ class InferenceWrapper:
                     self.style_vectors,
                     self.timbre_latents,
                 )
-                self.model.prefill_src_condition4delay(self.src_content_codes[..., -self.delay:])
+                if self.delay:
+                    self.model.prefill_src_condition4delay(self.src_content_codes[..., -self.delay:])
 
             # decode with vocoder
             vc_codes_chunk = self.pred_codes[..., -self.decode_window_frames:]

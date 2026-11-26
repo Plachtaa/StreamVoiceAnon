@@ -664,16 +664,17 @@ class InferenceWrapper:
 
             if current_pos // 2 >= self.max_seq_frames:
                 # refill prompt with ref codes and buffer
+                end = -self.delay if self.delay else None
                 extended_ref_audio_codes = torch.cat(
                     [self.ref_audio_codes, self.pred_codes[..., -self.buffer_frames:]], dim=-1
                 )
                 extended_ref_content_codes = torch.cat(
-                    [self.ref_content_codes, self.src_content_codes[..., -self.buffer_frames - self.delay:-self.delay]],
+                    [self.ref_content_codes, self.src_content_codes[..., -self.buffer_frames - self.delay:end]],
                     dim=-1
                 )
                 if self.rmvpe is not None:
                     extended_ref_f0s = torch.cat(
-                        [self.ref_f0s, self.src_f0s[..., -self.buffer_frames - self.delay:-self.delay]],
+                        [self.ref_f0s, self.src_f0s[..., -self.buffer_frames - self.delay:end]],
                         dim=-1
                     )
                 else:
@@ -686,7 +687,8 @@ class InferenceWrapper:
                     ref_f0=extended_ref_f0s,
                     first_prefill=False,
                 )
-                self.model.prefill_src_condition4delay(self.src_content_codes[..., -self.delay:], src_f0=self.src_f0s[:, -self.delay:] if self.rmvpe is not None else None)
+                if self.delay:
+                    self.model.prefill_src_condition4delay(self.src_content_codes[..., -self.delay:], src_f0=self.src_f0s[:, -self.delay:] if self.rmvpe is not None else None)
 
             # # decode with vocoder
             vc_codes_chunk = self.pred_codes[..., -self.decode_window_frames:]

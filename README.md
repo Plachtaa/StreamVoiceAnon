@@ -21,7 +21,7 @@
 - [Architecture](#architecture)
 - [Installation](#installation) · [Linux](#linux) · [Windows with CUDA](#windows-with-cuda)
 - [Download pretrained models](#download-pretrained-models)
-- [Inference](#inference) · [Python API](#python)
+- [Inference](#inference) · [Python API](#python) · [Desktop GUI](#desktop-microphone-inference)
 - [StreamVoiceAnon training](#streamvoiceanon-training)
 - [Results on development and test](#results-on-development-and-test)
 - [Citation](#citation) · [License and acknowledgements](#license-and-acknowledgements)
@@ -176,6 +176,30 @@ with InferenceWrapper(
 ```
 
 The same class is available from `evaluations.infer_arvc` for code using the original script path.
+
+### Desktop microphone inference
+
+The original `evaluations/real-time-gui.py` launcher opens the desktop app. It supports StreamVoiceAnon, frame-distill, and pool-distill. Install the GUI dependencies after setting up inference and downloading the checkpoints.
+
+On Ubuntu, install Tk and PortAudio first.
+
+```bash
+sudo apt-get install -y python3-tk libportaudio2
+python -m pip install -r environment/requirements-gui.txt
+python evaluations/real-time-gui.py
+```
+
+On Windows, use the Python executable from the [PowerShell setup](#windows-with-cuda).
+
+```powershell
+& $python -m pip install -r environment/requirements-gui.txt
+$env:TORCHINDUCTOR_BUNDLE_TRITON_INTO_FX_GRAPH_CACHE = "0"
+& $python evaluations/real-time-gui.py
+```
+
+In **Voice Conversion**, choose a model and a reference recording with at least three seconds of speech. Select your microphone and output device in **Audio Devices**, then select **Start** to load the model and warm up the decoder. Use **Stop** before switching models or changing devices. Select **Show Tutorial** for a walkthrough that highlights each control in the app.
+
+Use `--model base` to open with StreamVoiceAnon selected or `--no-compile` to turn off compilation.
 
 ## StreamVoiceAnon training
 
