@@ -1,7 +1,4 @@
 <h1 align="center">StreamVoiceAnon</h1>
-
-<p align="center">Streaming speaker anonymization with neural audio codecs and autoregressive voice conversion</p>
-
 <p align="center">
   <img src="https://img.shields.io/badge/ICASSP-2026-purple?style=plastic" alt="ICASSP 2026" height="32">
   <a href="https://paniquex.github.io/Stream-Voice-Anon/"><img src="https://img.shields.io/badge/StreamVoiceAnon-Demo-blue?style=plastic" alt="StreamVoiceAnon demo" height="32"></a>
@@ -10,10 +7,31 @@
 </p>
 
 <p align="center">
+  <b>StreamVoiceAnon</b><br>
+  Nikita Kuzmin<sup>1,2*</sup>, Songting Liu<sup>1*</sup>, Kong Aik Lee<sup>3</sup>, Eng Siong Chng<sup>1</sup>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/INTERSPEECH-2026-2ea44f?style=plastic" alt="Interspeech 2026" height="32">
   <a href="https://arxiv.org/abs/2603.06079"><img src="https://img.shields.io/badge/arXiv-2603.06079-b31b1b.svg?style=plastic" alt="StreamVoiceAnon+ paper" height="32"></a>
   <a href="https://huggingface.co/paniquex/StreamVoiceAnonPlus"><img src="https://img.shields.io/badge/Hugging%20Face-StreamVoiceAnon%2B-yellow?style=plastic" alt="StreamVoiceAnon+ weights" height="32"></a>
 </p>
+
+<p align="center">
+  <b>StreamVoiceAnon+</b><br>
+  Nikita Kuzmin<sup>1,2</sup>, Kong Aik Lee<sup>3</sup>, Eng Siong Chng<sup>1</sup>
+</p>
+
+<div align="center">
+  <sup>1</sup><a href="https://www.ntu.edu.sg/">Nanyang Technological University</a>, Singapore
+  <br>
+  <sup>2</sup><a href="https://www.a-star.edu.sg/i2r">Institute for Infocomm Research, A*STAR</a>, Singapore
+  <br>
+  <sup>3</sup><a href="https://www.polyu.edu.hk/">The Hong Kong Polytechnic University</a>, Hong Kong
+  <br>
+  <i>* Equal contribution to StreamVoiceAnon</i>
+</div>
+
 
 ## Contents
 
